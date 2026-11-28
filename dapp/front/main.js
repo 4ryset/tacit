@@ -10066,7 +10066,10 @@ function paintDash0() {
   if (DASH.id !== id) { if (!(id in DASH.bases)) DASH.bases[id] = store.get(id); Object.assign(DASH, { id, base: DASH.bases[id], cur: {} }); }
   const base = DASH.base?.v || {}, k = S.key?.pubHex;
   const items = dashItems().filter((it) => it.core || it.show || Number(base[it.key]?.v || 0) > 0);
-  const worth = k ? dashWorth(items) : null, tot = $('#hold-tot'), delta = {};
+  // A connected public wallet has a complete public portfolio even when its
+  // Tacit key is still locked. Do not leave the aggregate blank while the
+  // individual public rows are already priced.
+  const worth = id ? dashWorth(items) : null, tot = $('#hold-tot'), delta = {};
   for (const it of items) {
     const raw = base[it.key]?.v, prev = it.noDelta || raw == null ? null : it.num ? (Number.isFinite(Number(raw)) ? Number(raw) : null) : big(raw);
     if (it.v != null && prev != null) {
@@ -14192,7 +14195,7 @@ function swcBar(k) {
   const s = SWC_SECS[k];
   if (s) proveBar(q, typeof s === 'function' ? s() : s);
 }
-const swcLoad = () => (SWC.p ||= import('/swap/card.js?cb=2b7abf40').catch((e) => { SWC.p = null; throw e; }));
+const swcLoad = () => (SWC.p ||= import('/swap/card.js?cb=906d75a3').catch((e) => { SWC.p = null; throw e; }));
 // Intent on Shield or Swap is a useful head start: fetch both the card and the
 // private action engine, and warm the fee/log reads they need before submit.
 const hxActionWarm = () => { swcLoad().catch(() => {}); hxWarm(); hxWarmWrap(); };

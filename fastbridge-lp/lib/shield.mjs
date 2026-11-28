@@ -80,10 +80,18 @@ export function makeShield({ cfg, ux, key, address, quiet = async () => true, tu
     }
     if (receipt.status !== '0x1') { st.pending = null; st.nextIndex = null; await keep(); return stop('a deposit reverted', { tx: p.tx, index: p.index }); }
     if (p.phase !== 'mined') { p.phase = 'mined'; await keep(); }
+    // A settle that did not go through is asked again, later each time (up to an hour apart): the deposit waits on the pool for it, and nothing new is sent while it
+    // does. It is alerted the first time and again after six tries. (One that reverted while the relay was briefly not ok stopped the shield until a restart,
+    // 2026-11-28; the restart settled it at once.)
+    if (p.retryAt && now() < p.retryAt) return { did: 'wait' };
     // the deposit is rebuilt from its index: the same note, so the settle is the one the deposit asked for
     const built = await ux.buildRouterWrap({ walletPriv: key, amountWei, ticker: TICKER, index: p.index });
     try { await settleDeposit({ ux, key, address, sent: { ...built, from: p.src || address, txHash: p.tx }, turn }); }
-    catch (e) { return stop('a deposit was made and its settle did not go through; it is not repeated', { tx: p.tx, index: p.index, error: err(e) }); }
+    catch (e) {
+      p.settleFails = (p.settleFails || 0) + 1; p.retryAt = now() + Math.min(3600, cfg.everySecs * p.settleFails); await keep();
+      if (p.settleFails === 1 || p.settleFails === 6) alert({ level: p.settleFails === 1 ? 'warn' : 'error', msg: 'auto-shield: a deposit was made and its settle did not go through; the settle is asked again, the deposit is not repeated', tx: p.tx, index: p.index, tries: p.settleFails, error: err(e) });
+      return { did: 'settle-retry' };
+    }
     st.pending = null; st.nextIndex = p.index + 1; st.shielded = String(BigInt(st.shielded) + amountWei); st.count += 1; st.lastTx = p.tx; st.lastAt = now();
     bal = null; nextAt = now() + cfg.everySecs;
     await keep();

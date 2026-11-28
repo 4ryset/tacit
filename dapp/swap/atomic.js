@@ -463,7 +463,12 @@ export function makeAtomicLane({ host, notify = () => {}, wallet = () => null, p
       // swap on first, as the swap's own press does. Else the button says what is short.
       const add = shield ? addUnits(amount, bal) : 0n;
       if (add > 0n) {
-        if (L.pub != null && L.pub < add + WALLET_KEEP) return { label: `Not enough ETH: you have ${fmt(L.pub)} in your wallet and ${fmt(bal)} private; need ${fmt(add + WALLET_KEEP + bal)} including fees`, off: true };
+        // (the button says it short; the line under it says what is held, what of it a swap can use after the relay's fee, and what is needed: the balance line shows
+        // what is held, so the figures said are the same ones)
+        if (L.pub != null && L.pub < add + WALLET_KEEP) {
+          const held = heldOf(pk);
+          return { label: 'Not enough ETH', off: true, short: `You have ${fmt(held)} ETH private${held !== bal ? ` (${fmt(bal)} of it usable, after the relay fee)` : ''} and ${fmt(L.pub)} in your wallet. This swap needs about ${fmt(add + WALLET_KEEP + bal)} ETH in all, including fees.` };
+        }
         if (L.qErr) return L.qRetry ? { label: 'Try again', act: 'retry' } : { label: 'No quote', off: true };
         if (!q) return { label: 'Getting a quote…', off: true };
         if (q.blocked) return { label: 'Not at this price', off: true };
@@ -605,7 +610,8 @@ export function makeAtomicLane({ host, notify = () => {}, wallet = () => null, p
     const box = recsHost || $('a-sent'), gone = dismissed(), recs = L.recs.filter((r) => !gone.has(r.id)).map(withPress);
     // in a card with no list of its own (the front page's swap card) the swaps sit under the button: each one under way or that needs a look, and the
     // two latest finished in the last day; the rest are on /btc/
-    const brief = (rs) => { const hot = rs.filter((r) => r.state !== 'done'), fresh = rs.filter((r) => r.state === 'done' && !(r.at && now() - r.at > 86400)).slice(0, Math.max(0, 2 - hot.length)); return rs.filter((r) => hot.includes(r) || fresh.includes(r)); };
+    // (a swap that stopped or came back with nothing to do is listed like a finished one: for a day)
+    const brief = (rs) => { const hot = rs.filter((r) => r.state === 'working' || (r.state !== 'done' && !(r.at && now() - r.at > 86400))), fresh = rs.filter((r) => r.state === 'done' && !(r.at && now() - r.at > 86400)).slice(0, Math.max(0, 2 - hot.length)); return rs.filter((r) => hot.includes(r) || fresh.includes(r)); };
     const listed = recsHost ? recs : brief(recs), more = recs.length - listed.length;
     if (!recsHost) { const m = $('a-more'); m.hidden = more <= 0; m.innerHTML = more > 0 ? `<a href="/btc/#mine">${more === 1 ? 'One more swap' : `${more} more swaps`} on the Bridge page →</a>` : ''; }
     const shown = L.chain ? [pressCard(L.chain), ...listed] : listed;
@@ -681,7 +687,9 @@ export function makeAtomicLane({ host, notify = () => {}, wallet = () => null, p
     if (L.chain) { /* a press under way says its own steps */ }
     else if (L.qErr && !L.busy) say(esc(L.qErr), 'err');
     else if (L.q?.blocked && !L.busy) say(esc(L.q.blocked.charAt(0).toUpperCase() + L.q.blocked.slice(1) + (/[.!?]$/.test(L.q.blocked) ? '' : '.')), 'err');
-    else if (L.q?.highFee && !L.q.feeAccepted && !L.q.renewed && !L.busy) say(esc(`Network fee ≈ ${L.q.highFee.sats.toLocaleString('en-US')} sats (${(L.q.highFee.bps / 100).toFixed(1)}% of the amount). Accept it, or swap more.`), 'warn');
+    else if (gt.short && !L.busy) say(esc(gt.short), 'warn');
+    // (a large fee is asked to be accepted only when the button asks it: while BTC or ETH is still to be added, it is said, not asked)
+    else if (L.q?.highFee && !L.q.feeAccepted && !L.q.renewed && !L.busy) { const asks = /^Accept the fee/.test(gt.label || ''); say(esc(`Network fee ≈ ${L.q.highFee.sats.toLocaleString('en-US')} sats (${(L.q.highFee.bps / 100).toFixed(1)}% of the amount).${asks ? ' Accept it, or swap more.' : ' A larger amount pays a smaller share of it.'}`), asks ? 'warn' : 'hint'); }
     else if (L.cls === 'err' && !L.busy && !L.sticky) say('');
   }
 

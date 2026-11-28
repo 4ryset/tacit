@@ -527,13 +527,21 @@ test('auto-shield: a used index stops it before anything is sent, and says so', 
   assert.equal((await m.s.step()).did, 'halted'); assert.equal(m.c.checks, 1);
 });
 
-test('auto-shield: a settle that fails stops it and is alerted; the deposit is not repeated, a restart settles it', async () => {
+test('auto-shield: a settle that fails is alerted and asked again later, the deposit never repeated; a restart settles it too', async () => {
   const store = memStore();
-  const a = mkShield({ bal: () => E('1'), settleFails: true }, undefined, store);
-  assert.equal((await a.s.step()).did, 'halted'); assert.equal(a.c.sent.length, 1);
-  assert.match(a.alerts[0].msg, /settle did not go through/); assert.equal(a.alerts[0].error, 'relay said no');
-  assert.equal((await a.s.step()).did, 'halted'); assert.equal(a.c.sent.length, 1);
-  const b = mkShield({ bal: () => E('1') }, undefined, store);
+  let t = 1_000_000;
+  const o = { bal: () => E('1'), settleFails: true };
+  const a = mkShield(o, undefined, store, { now: () => t });
+  assert.equal((await a.s.step()).did, 'settle-retry'); assert.equal(a.c.sent.length, 1);
+  assert.match(a.alerts[0].msg, /settle did not go through; the settle is asked again/); assert.equal(a.alerts[0].error, 'relay said no');
+  assert.equal((await a.s.step()).did, 'wait', 'not asked again at once'); assert.equal(a.c.sent.length, 1, 'and no second deposit');
+  t += 601; assert.equal((await a.s.step()).did, 'settle-retry', 'asked again after the wait'); assert.equal(a.alerts.length, 1, 'alerted once, not every try');
+  o.settleFails = false; t += 1300;
+  assert.equal((await a.s.step()).did, 'shielded', 'the relay takes it: shielded, with the deposit made once'); assert.equal(a.c.sent.length, 1);
+  const store2 = memStore();
+  const a2 = mkShield({ bal: () => E('1'), settleFails: true }, undefined, store2, { now: () => t });
+  assert.equal((await a2.s.step()).did, 'settle-retry');
+  const b = mkShield({ bal: () => E('1') }, undefined, store2);
   assert.equal((await b.s.step()).did, 'shielded'); assert.equal(b.c.sent.length, 0);
   const r = mkShield({ bal: () => E('1'), receipt: { status: '0x0' } });
   assert.equal((await r.s.step()).did, 'halted'); assert.match(r.alerts[0].msg, /reverted/);

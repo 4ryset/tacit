@@ -532,8 +532,9 @@ console.log('One press: the connected wallet\u2019s own ETH is shown, counted by
   await SHOT(page, 'w-1280-light'); await page.emulateMedia({ colorScheme: 'dark' }); await SHOT(page, 'w-1280-dark'); await page.setViewportSize({ width: 390, height: 900 }); await SHOT(page, 'w-390-dark'); await page.emulateMedia({ colorScheme: 'light' }); await SHOT(page, 'w-390-light'); await page.setViewportSize({ width: 1200, height: 1000 });
   ok(/^Adds 0\.011 ETH from your wallet first, then swaps\./.test(await text(page, '#a-q')), 'the note says the press adds ETH from the wallet first');
   await page.fill('#a-amt', '0.013'); await page.dispatchEvent('#a-amt', 'input');
-  await page.waitForFunction(() => /^Not enough ETH: you have 0\.014 in your wallet and 0 private; need 0\.016 including fees$/.test(document.querySelector('#a-go').textContent), null, { timeout: 15000 });
-  ok(await page.$eval('#a-go', (e) => e.disabled), 'too little ETH in the wallet says so, with the numbers');
+  await page.waitForFunction(() => document.querySelector('#a-go').textContent === 'Not enough ETH', null, { timeout: 15000 });
+  ok(await page.$eval('#a-go', (e) => e.disabled), 'too little ETH in the wallet: the button says so, short');
+  ok(/^You have 0 ETH private and 0\.014 in your wallet\. This swap needs about 0\.016 ETH in all, including fees\.$/.test(await text(page, '#a-q')), `and the line under it gives the numbers, the same ones the balance line shows (${await text(page, '#a-q')})`);
   ok(errs.length === 0, `no page errors (${errs.join(' | ')})`);
   await page.close();
   RPCV.balance = 10n ** 18n;
