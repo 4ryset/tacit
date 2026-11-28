@@ -7,7 +7,6 @@ export const ETH_NODES = [
   // PublicNode currently returns browser-specific HTTP 403s for this app, even
   // though the same JSON-RPC payload works from other clients. Keep it out of
   // the default browser route so a visitor never pays for that failed first try.
-  'https://eth.drpc.org',
   'https://1.rpc.thirdweb.com',
   'https://ethereum-json-rpc.stakely.io',
   // The light gateway is promoted ahead of these nodes for cheap latest-state reads;
@@ -15,7 +14,6 @@ export const ETH_NODES = [
   'https://tacit-node-gw.onrender.com/eth',
   // Last resorts: they answer a browser with a 429 (no CORS headers, so the console shows a CORS block), and a browser prints a line for every failed request.
   'https://rpc.mevblocker.io',
-  'https://eth-mainnet.public.blastapi.io',
   'https://eth-mainnet.nodereal.io/v1/1659dfb40aa24bbb8153a677b98064d7',
 ];
 export const ETH_LOG_NODES = [

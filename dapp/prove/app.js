@@ -1005,5 +1005,10 @@ if (isPhone(navigator.userAgent)) {
   paint();
   // The computer is read every two seconds: it is on this machine. With nothing answering after a few tries it is read every ten, and every
   // two again once the line is copied or the address changes (a prover may be about to start).
-  loop(async () => { await readLocal(); misses = health ? 0 : misses + 1; paint(); }, () => (misses > 5 ? 10000 : 2000), 10000, () => true);
+  loop(async () => {
+    // Do not make a public page probe localhost until the holder has interacted.
+    // Chrome's private-network policy otherwise emits a console error on every load.
+    if (navigator.userActivation?.hasBeenActive) await readLocal();
+    misses = health ? 0 : misses + 1; paint();
+  }, () => (misses > 5 ? 10000 : 2000), 10000, () => true);
 }

@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { defang, prTitle, branchOf, reportPayload, prBody } from './deliver.mjs';
 import { decide, recentFiles } from './pr-agent.mjs';
-import { compact, NO_WRITE, taskPrompt } from './engine.mjs';
+import { compact, NO_WRITE, taskPrompt, SYSTEM } from './engine.mjs';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname), CLI = path.join(HERE, 'pr-agent.mjs');
 let fails = 0; const check = (n, c, x = '') => { console.log((c ? 'ok   ' : 'FAIL ') + n + (x ? '  ' + x : '')); if (!c) fails++; };
@@ -33,13 +33,14 @@ const NEWTEST_WEAK = "import { add } from '../src/add.mjs';\nif (add(0, 0) !== 0
 
 // the scripted model + the endpoints around it: /agent/chat (a script of tool calls), /agent/status, and /pr-agent/report (collects what is posted)
 let script = [], nodes = 1; const requests = [], reports = [];
-let flaky = 0, failAfter = Infinity, okCalls = 0;   // a gateway that restarts: the next `flaky` turns get a 502 page; after `failAfter` good turns every turn does
+let flaky = 0, failAfter = Infinity, okCalls = 0, badJson = 0; const badSeeds = [], goodSeeds = [];   // badJson: the next turns get llama-server's 'Failed to parse tool call arguments' 500   // a gateway that restarts: the next `flaky` turns get a 502 page; after `failAfter` good turns every turn does
 const server = http.createServer((req, res) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => {
   const json = (o, code = 200) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
   if (req.url === '/agent/status') return json({ ok: true, nodes, queued: 0, models: ['qwen3.6-35b-a3b'] });
   if (req.url === '/pr-agent/report') { reports.push({ auth: req.headers.authorization, body: JSON.parse(b) }); return json({ ok: true }); }
   if (req.url === '/agent/chat' && (flaky > 0 || okCalls >= failAfter)) { if (flaky > 0) flaky--; res.writeHead(502, { 'content-type': 'text/html' }); return res.end('<!DOCTYPE html><html><head><title>502</title></head><body>bad gateway</body></html>'); }
-  if (req.url === '/agent/chat') { okCalls++; requests.push({ auth: req.headers.authorization, body: JSON.parse(b) });
+  if (req.url === '/agent/chat' && badJson > 0) { badJson--; badSeeds.push(JSON.parse(b).seed); res.writeHead(500, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ error: { code: 500, message: 'Failed to parse tool call arguments as JSON: [json.exception.parse_error.101] parse error at line 1, column 24' } })); }
+  if (req.url === '/agent/chat') { okCalls++; goodSeeds.push(JSON.parse(b).seed); requests.push({ auth: req.headers.authorization, body: JSON.parse(b) });
     const step = script.shift() || { name: 'finish', args: { summary: 'NOTHING: ran out of script' } };
     return json({ choices: [{ message: { role: 'assistant', content: '', tool_calls: [{ id: `c${requests.length}`, type: 'function', function: { name: step.name, arguments: JSON.stringify(step.args) } }] } }], usage: { prompt_tokens: 1000, completion_tokens: 40 },
       swarm: { tier: 'big', model: 'qwen3.6-35b-a3b-q4', miner: '0x' + 'ab'.repeat(20) } }); }
@@ -182,6 +183,16 @@ try {
     check('a gateway that is down from the first turn, with nothing edited, is an error with a plain message', r.result?.status === 'error' && /error page/.test(r.result.summary || '') && !/<html/i.test(r.result.summary || ''), r.result?.summary); }
   failAfter = Infinity; flaky = 0; okCalls = 0;
 
+  // a model that wrote invalid tool-call JSON: the retry is a different draw (a new seed, a little warmer), and the run goes on
+  { const root = mkRepo(); okCalls = 0; failAfter = Infinity; flaky = 0; badJson = 1; badSeeds.length = 0; goodSeeds.length = 0;
+    script = [...FIX, call('create_file', { path: 'tests/add-new.test.mjs', content: NEWTEST_FAILS_BEFORE }), call('finish', { summary: 'add returns the sum of its arguments' })];
+    const r = await cli(root, req(), ['--dry-run'], { PR_AGENT_RETRY_MS: '5' });
+    check('a 500 "Failed to parse tool call arguments" is retried and the run still ends as a PR', r.result?.status === 'pr' && r.result.finish === 'finish', JSON.stringify({ s: r.result?.status, f: r.result?.finish, note: r.result?.note }));
+    check('the retry used a different seed from the one that failed (the same one would fail the same way)', badSeeds.length === 1 && goodSeeds[0] !== badSeeds[0], `failed seed ${badSeeds[0]}, retried with ${goodSeeds[0]}`); }
+  { const root = mkRepo(); okCalls = 0; badJson = 50; script = [];   // it never writes valid JSON: three more draws, then an error in plain words
+    const r = await cli(root, req(), ['--dry-run'], { PR_AGENT_RETRY_MS: '5' }); badJson = 0;
+    check('a model that never writes valid tool-call JSON ends the run as an error after three more tries, not forever', r.result?.status === 'error' && /parse tool call/i.test(r.result.summary || ''), r.result?.summary?.slice(0, 80)); }
+  check('the prompt says what a real test must do: import the real code, not copy its logic', /import the real module and call the real code/.test(SYSTEM));
   // units
   check('defang breaks @mentions and #refs', defang('hi @bob see #12') === 'hi @​bob see #​12');
   check('a title is one short line without the SUGGEST/NOTHING prefix', prTitle('SUGGEST: trim the name\nplease') === 'trim the name please' && prTitle('x') === 'small fix' && prTitle('a'.repeat(200)).length <= 72);

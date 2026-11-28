@@ -3,7 +3,7 @@
 // found onchain (zQuoter through eth_call), so no outside service is asked. A token the page cannot price this way, or one whose balance moves on its own
 // (stETH: a transfer can arrive a wei or two short), is not offered.
 
-import { routeIn, routeOut, sizeIn, zapPullWith, ZAP, POOL } from '/swap/later.js?cb=3810fde5';
+import { routeIn, routeOut, sizeIn, zapPullWith, ZAP, POOL } from '/swap/later.js?cb=7991903d';
 export { zapPullWith, ZAP };
 
 const ZERO = '0x0000000000000000000000000000000000000000';

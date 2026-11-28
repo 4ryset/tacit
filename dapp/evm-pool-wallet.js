@@ -142,6 +142,24 @@ export function sealNote(zk, { to, value, asset, e = randomScalar() }) {
   return { v, npk: o.npk, rho: o.rho, leaf: zk.leafOf(asset, v, o.npk, o.rho), memo: concatBytes(G.multiply(BigInt(e)).toRawBytes(true), seal(s, v)) };
 }
 
+// A note to oneself in the self form (a root's: keys.pq): 65 bytes, shaped as a classical memo, opened only with the root.
+export function sealSelf(zk, { keys, value, asset, e = randomScalar() }) {
+  const v = BigInt(value);
+  if (v < 0n || v >= VMAX) throw new Error('evm-pool-wallet: value must be below 2^120');
+  const pk = G.multiply(BigInt(e)).toRawBytes(true), s = selfS(keys.pq.self, pk), o = zk.outputKeys(keys.A, keys.N, s);
+  return { v, npk: o.npk, rho: o.rho, leaf: zk.leafOf(asset, v, o.npk, o.rho), memo: concatBytes(pk, seal(s, v)) };
+}
+// A note in the hybrid form to `to` ({ V, A, N }) whose ML-KEM-768 key is `ek`: 1,153 bytes. `encaps(ek, m)` → { ct, ss } (evm-pool-pq.js); `ent`, the
+// sender's randomness key (keys.pq.ent), makes m from the one-time key, else m is random.
+export function sealHybrid(zk, { to, ek, value, asset, e = randomScalar(), ent = null, encaps }) {
+  const v = BigInt(value);
+  if (v < 0n || v >= VMAX) throw new Error('evm-pool-wallet: value must be below 2^120');
+  const pk = G.multiply(BigInt(e)).toRawBytes(true), dh = to.V.multiply(BigInt(e)).toRawBytes(true);
+  const m = ent ? hmac(sha256, ent, concatBytes(te.encode('tacit-evm-pool-kem-m-v1'), pk)) : crypto.getRandomValues(new Uint8Array(32));
+  const { ct, ss } = encaps(ek, m), s = hybridS(dh, ss, ct, pk), o = zk.outputKeys(to.A, to.N, s);
+  return { v, npk: o.npk, rho: o.rho, leaf: zk.leafOf(asset, v, o.npk, o.rho), memo: concatBytes(ct, pk, seal(s, v)) };
+}
+
 const memoBytes = (memo) => (memo instanceof Uint8Array ? memo : unhex(memo));
 function opened(zk, keys, s, sealed, { leaf, asset }) {
   const v = open(s, sealed);
@@ -151,23 +169,47 @@ function opened(zk, keys, s, sealed, { leaf, asset }) {
   return { v, rho: o.rho, sk: o.sk, nk: o.nk, npk: o.npk, s };
 }
 
+// Post-quantum memos, as tacit.wei makes them (evm-pool-pq.js has the keys; `keys.pq` is that key set, or absent). Both open only with the root:
+//   self    65 bytes, shaped as a classical memo: a note to oneself.        s = 0x04 ‖ HMAC(self, "tacit-evm-pool-s-self-v1" ‖ pk_eph)
+//   hybrid  1,153 bytes = kem_ct (1,088) ‖ pk_eph (33) ‖ ct (16) ‖ tag (16).  s = 0x01 ‖ SHA-256("tacit-evm-pool-s-v2" ‖ compress(v·pk_eph) ‖ ML-KEM shared secret ‖ kem_ct ‖ pk_eph)
+// The value is sealed under s and the note's keys come from s as in a classical memo, so a note found either way is spent as any other.
+export const PQ_MEMO = 1153;
+// The saved state's suffix for a wallet with a root (empty without one): ':pq' and the first 8 bytes of its ML-KEM key's hash.
+export const pqTag = (keys) => (keys?.pq?.hash ? ':pq' + hex(keys.pq.hash).slice(2, 18) : '');
+const KEM_CT = 1088;
+export const selfS = (self, pk) => concatBytes(Uint8Array.of(4), hmac(sha256, self, concatBytes(te.encode('tacit-evm-pool-s-self-v1'), pk)));
+export const hybridS = (dh, ss, ct, pk) => concatBytes(Uint8Array.of(1), sha256(concatBytes(te.encode('tacit-evm-pool-s-v2'), dh, ss, ct, pk)));
+// The memo's one-time key: a classical or self memo's first 33 bytes, a hybrid one's after its ML-KEM ciphertext (read only with a root).
+const memoKey = (m, pq) => (m.length === MEMO_LEN ? m.subarray(0, 33) : pq && m.length === PQ_MEMO ? m.subarray(KEM_CT, KEM_CT + 33) : null);
+// A memo opened with `dh` (the one-time key times the view key): hybrid, else classical and then, with a root, the self form.
+function openedAny(zk, keys, dh, m, item) {
+  const body = m.subarray(m.length - 32);
+  if (m.length === PQ_MEMO) {
+    const ct = m.subarray(0, KEM_CT);
+    let ss;
+    try { ss = keys.pq.decaps(ct); } catch { return null; }
+    return opened(zk, keys, hybridS(dh, ss, ct, m.subarray(KEM_CT, KEM_CT + 33)), body, item);
+  }
+  return opened(zk, keys, dh, body, item) || (keys.pq ? opened(zk, keys, selfS(keys.pq.self, m.subarray(0, 33)), body, item) : null);
+}
+
 // The owned note behind (memo, leaf), or null: { v, rho, sk, nk, npk, s }.
 export function openNote(zk, keys, item) {
-  const m = memoBytes(item.memo);
-  if (m.length !== MEMO_LEN) return null;
-  let s;
-  try { s = secp.ProjectivePoint.fromHex(m.subarray(0, 33)).multiply(keys.v).toRawBytes(true); } catch { return null; }
-  return opened(zk, keys, s, m.subarray(33), item);
+  const m = memoBytes(item.memo), pk = memoKey(m, keys.pq);
+  if (!pk) return null;
+  let dh;
+  try { dh = secp.ProjectivePoint.fromHex(pk).multiply(keys.v).toRawBytes(true); } catch { return null; }
+  return openedAny(zk, keys, dh, m, item);
 }
 
 // openNote for each of [{ memo, leaf, asset }], with the shared secrets computed as one batch.
 export function openNotes(zk, keys, items) {
   const ms = items.map((it) => memoBytes(it.memo));
   const live = [];
-  ms.forEach((m, i) => { if (m.length === MEMO_LEN) live.push(i); });
-  const ss = sharedSecrets(keys.v, live.map((i) => ms[i].subarray(0, 33)));
+  ms.forEach((m, i) => { if (memoKey(m, keys.pq)) live.push(i); });
+  const ss = sharedSecrets(keys.v, live.map((i) => memoKey(ms[i], keys.pq)));
   const out = items.map(() => null);
-  live.forEach((i, j) => { if (ss[j]) out[i] = opened(zk, keys, ss[j], ms[i].subarray(33), items[i]); });
+  live.forEach((i, j) => { if (ss[j]) out[i] = openedAny(zk, keys, ss[j], ms[i], items[i]); });
   return out;
 }
 
@@ -438,7 +480,9 @@ export function makeEvmPoolWallet({ zk, keys, chain, keeper = null, prove, store
   const box = boxOf(RECEIVE_INDEX);
   const topicOf = (a) => '0x' + a.slice(2).toLowerCase().padStart(64, '0');
   const confirmations = chain.confirmations ?? 12;
-  const skey = `tacit-evm-pool-v1:${chain.chainId}:${chain.pool.toLowerCase()}:${keys.address}`;
+  // With a post-quantum root (keys.pq) the state is kept apart, under the key's hash: notes in post-quantum memos the wallet passed over before it had
+  // the root are found only by reading the history again with it, and a wallet without the root keeps its own state.
+  const skey = `tacit-evm-pool-v1:${chain.chainId}:${chain.pool.toLowerCase()}:${keys.address}${pqTag(keys)}`;
 
   // State: { block, tree (an incTree tracking each unspent owned note), notes (unspent), nextRefund }. The tree keeps
   // the pool's right edge and owned paths only, so state stays small however large the pool grows. A state begun at a

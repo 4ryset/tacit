@@ -3,7 +3,7 @@ import { tabKeyRead, tabKeyWrite, tabKeyClear, tabKeyWatch } from '../tab-key.js
 
 const TACIT_URL = '/tacit.js?cb=dd8b0a1f';
 const SECRET_URL = '/sats/secret.js?cb=4a43ebd0';
-const ETH_URL = '/sats/eth.js?cb=c6e35fbf';
+const ETH_URL = '/sats/eth.js?cb=84b90492';
 const POOL_STATUS = 'https://tacit-btc-pool-mainnet.onrender.com/btc-pool/status';
 
 const SHARED_NET = 'tacit-network-v1';
