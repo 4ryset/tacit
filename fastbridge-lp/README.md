@@ -340,8 +340,9 @@ everything it does is logged; a failure is alerted (at most hourly per kind).
   only while nothing is under way on the forward side (no open swap, hold or promise), one deposit at a time. Its state is `dataDir/upkeep/shield.json`
   (`nextIndex`, and `pending` with the index, amount, account nonce and transaction): the pending deposit is written before it is sent, so a restart waits for it and settles it, and
   never sends it again. The key's next wrap index is kept there; it is read from the pool's history (minutes) only when none is kept, once. Each deposit is first run as a call:
-  one that would revert is not sent, and a used index (`DepositExists`) stops auto-shield with an alert, to read the history again at the next start. A deposit whose settle fails, or
-  that reverted, also stops it with an alert (the deposit is on the chain, the restart settles it). ETH that falls by 0.01 or more with nothing of the provider's under way is alerted
+  one that would revert is not sent, and a used index (`DepositExists`) stops auto-shield with an alert, to read the history again at the next start. A deposit that reverted also
+  stops it with an alert. A deposit whose settle fails is not stopped on: the settle is asked again, `FB_LP_SHIELD_EVERY_SECS` times the tries apart (at most an hour),
+  alerted on the first try and the sixth, and nothing new is deposited while it waits (the deposit is on the chain; a restart settles it too). ETH that falls by 0.01 or more with nothing of the provider's under way is alerted
   and skipped. One log line per action (`auto-shield: ...`); `/info` `refill.autoShield: { on, halted, pending, shielded }`.
 - **Low-balance alerts** (always on; `lib/refill-watch.mjs`). Each goes through the alert (webhook, below), is said when it begins and again every four hours while it lasts, and
   once more, as an info, when it ends:
