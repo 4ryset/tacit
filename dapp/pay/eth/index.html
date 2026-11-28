@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- One page, one inline module. The module's sha256 is pinned in script-src (build/build.mjs recomputes it and
      the ?cb= tokens on every build), so nothing else can run on this origin from here. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-gJncCKbfaMqF708XKKNtkFUMyn2AWCa65PdVXdJQqjM=' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' http://*.onion https://api.0xbow.io https://api.routescan.io https://fastrelay.xyz https://v1.privacypools.com wss://relay.walletconnect.org https://verify.walletconnect.org https://verify.walletconnect.com https://api.tacit.finance https://aggregator-api.kyberswap.com https://tacit-points.onrender.com https://tacit-btc-pool-mainnet.onrender.com https://ethereum-rpc.publicnode.com https://mainnet.gateway.tenderly.co https://eth.drpc.org https://1rpc.io https://rpc.flashbots.net https://mainnet.base.org https://base-rpc.publicnode.com https://base-mainnet.public.blastapi.io https://base.drpc.org https://rpc.mainnet.chain.robinhood.com https://robinhood.drpc.org https://robinhood-rpc.publicnode.com https://tacit-evm-pool-keepers.onrender.com https://tacit-evm-pool-forwarder.onrender.com https://tacit-evm-pool-forwarder-2.onrender.com wss://relay.primal.net wss://nos.lol wss://offchain.pub https://public.pimlico.io https://api.candide.dev https://mempool.space https://*.mempool.space https://blockstream.info https://mempool.emzy.de https://mempool.bitaroo.net https://mempool.ninja https://btcscan.org https://rpc.mevblocker.io https://mainnet.rpc.buidlguidl.com https://tacit-node-gw.onrender.com https://eth-mainnet.nodereal.io https://1.rpc.thirdweb.com https://eth-mainnet.public.blastapi.io https://ethereum-json-rpc.stakely.io; frame-src 'self' https://verify.walletconnect.org https://verify.walletconnect.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-xXnawiU5SbyH2di4KAsFYSwdFO8uScjA0kPS/tONXck=' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' http://*.onion https://api.0xbow.io https://api.routescan.io https://fastrelay.xyz https://v1.privacypools.com wss://relay.walletconnect.org https://verify.walletconnect.org https://verify.walletconnect.com https://api.tacit.finance https://aggregator-api.kyberswap.com https://tacit-points.onrender.com https://tacit-btc-pool-mainnet.onrender.com https://ethereum-rpc.publicnode.com https://mainnet.gateway.tenderly.co https://eth.drpc.org https://1rpc.io https://rpc.flashbots.net https://mainnet.base.org https://base-rpc.publicnode.com https://base-mainnet.public.blastapi.io https://base.drpc.org https://rpc.mainnet.chain.robinhood.com https://robinhood.drpc.org https://robinhood-rpc.publicnode.com https://tacit-evm-pool-keepers.onrender.com https://tacit-evm-pool-forwarder.onrender.com https://tacit-evm-pool-forwarder-2.onrender.com wss://relay.primal.net wss://nos.lol wss://offchain.pub https://public.pimlico.io https://api.candide.dev https://mempool.space https://*.mempool.space https://blockstream.info https://mempool.emzy.de https://mempool.bitaroo.net https://mempool.ninja https://btcscan.org https://rpc.mevblocker.io https://mainnet.rpc.buidlguidl.com https://tacit-node-gw.onrender.com https://eth-mainnet.nodereal.io https://1.rpc.thirdweb.com https://eth-mainnet.public.blastapi.io https://ethereum-json-rpc.stakely.io; frame-src 'self' https://verify.walletconnect.org https://verify.walletconnect.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="color-scheme" content="light dark">
 <link rel="preload" href="/fonts/instrument-serif-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/instrument-serif-400i-latin.woff2" as="font" type="font/woff2" crossorigin fetchpriority="low">
@@ -953,10 +953,11 @@ import { keeperFetch, rpcFetch, walletRpcFetch, bundlerFetch, poolHistory, avail
 globalThis.__tacitBundlerFetch ||= bundlerFetch();
 import { signBoxSync as signBox, boxSigOk as boxRecordOk } from '/box-record.js?cb=c66c8473';
 import { tabKeyRead, tabKeyWrite, tabKeyClear, tabKeyWatch } from '/tab-key.js?cb=18dd5b40';
+import { keptRoot, keepRoot, dropRoot } from '/tacit-chain-root.js';
 
 if (!secp.etc.hmacSha256Sync) secp.etc.hmacSha256Sync = (k, ...m) => hmac(sha256, k, concatBytes(...m));
 // preload-later:begin
-for (const u of ["/evm-pool-zk.js","/btc-pool-zk.js","/amm-bjj.js","/evm-pool-wallet.js?cb=2659d634","/btc-shielded-pool.js","/vendor/tacit-poseidon.min.js","/btc-pool-zk-boundary.js","/amm-sigma.js","/bulletproofs.js","/bulletproofs-plus.js","/evm-pool-scan.js","/evm-pool-open-relays.js","/evm-pool-gateway.js","/evm-pool-zk-prover.js?cb=00ff69c2"]) document.head.append(Object.assign(document.createElement('link'), { rel: 'modulepreload', href: u }));
+for (const u of ["/evm-pool-zk.js","/btc-pool-zk.js","/amm-bjj.js","/evm-pool-wallet.js?cb=26cf555d","/btc-shielded-pool.js","/vendor/tacit-poseidon.min.js","/btc-pool-zk-boundary.js","/amm-sigma.js","/bulletproofs.js","/bulletproofs-plus.js","/evm-pool-scan.js","/evm-pool-open-relays.js","/evm-pool-gateway.js","/evm-pool-zk-prover.js?cb=00ff69c2"]) document.head.append(Object.assign(document.createElement('link'), { rel: 'modulepreload', href: u }));
 // preload-later:end
 
 const POOL = '0x000000c2A20657CE25f2Ba99737933D031AFBEE9', ROUTER = '0x0000006C96Afa6f1cD4DF8FE19bc0d8B6A6Cd7B5';
@@ -1179,7 +1180,7 @@ function sayLive(el, view) {
 
 const mods = lazy(async () => {
   const [zkm, wm, gw, pm, pos] = await Promise.all([
-    import('/evm-pool-zk.js'), import('/evm-pool-wallet.js?cb=2659d634'), import('/evm-pool-gateway.js'),
+    import('/evm-pool-zk.js'), import('/evm-pool-wallet.js?cb=26cf555d'), import('/evm-pool-gateway.js'),
     import('/evm-pool-zk-prover.js?cb=00ff69c2'), import('/vendor/tacit-poseidon.min.js'),
   ]);
   const PO = { 2: pos.poseidon2, 3: pos.poseidon3, 4: pos.poseidon4, 5: pos.poseidon5, 7: pos.poseidon7 };
@@ -1409,7 +1410,11 @@ async function setKey(k, { quiet = false } = {}) {
   if (pubOf(k.priv) !== pubHex) throw new Error('That wallet opened a different key than expected. Nothing was changed.');
   const [m] = await Promise.all([mods(), loadLane()]);
   const keys = m.evmPoolKeys(m.zk, hexToBytes(k.priv));
+  // The key's PQ ID root, where this device keeps one (tacit-chain-root.js): the notes tacit.wei seals against a quantum computer are read with it
+  const root = keptRoot(k.priv)?.root || null;
+  if (root) keys.pq = (await import('/evm-pool-pq.js')).pqKeys(root);
   forget();
+  S.pqRoot = root;
   S.key = { ...k, pubHex, bp: keys.address };
   S.keys = keys;
   tabKeyWrite({ ...k, pubHex });
@@ -1426,7 +1431,7 @@ async function setKey(k, { quiet = false } = {}) {
   tokSyncOn(S.chain, true);
 }
 function forget() {
-  S.key = null; S.keys = null; Object.assign(BOXQ, { for: null, map: null, at: [] }); BOXST.for = null; Object.assign(SHOWN, { pub: null, k: null, seen: null, told: null }); Object.assign(GIFTQ, { for: null, by: {} }); LINKSHOW.v = null; PLANS.clear();
+  S.key = null; S.keys = null; S.pqRoot = null; Object.assign(BOXQ, { for: null, map: null, at: [] }); BOXST.for = null; Object.assign(SHOWN, { pub: null, k: null, seen: null, told: null }); Object.assign(GIFTQ, { for: null, by: {} }); LINKSHOW.v = null; PLANS.clear();
   for (const c of CHAINS) JUST[c.chainId].length = 0;
   const typed = DRAFT['f-amt'];
   for (const k of Object.keys(DRAFT)) delete DRAFT[k];
@@ -1672,7 +1677,7 @@ const signerFor = (c) => ({
   rpc: async (method, params) => (await rpcApart(c))(method, params),
 });
 
-const stateKey = (c) => `tacit-evm-pool-v1:${c.chainId}:${lc(POOL)}:${S.keys.address}`;
+const stateKey = (c) => `tacit-evm-pool-v1:${c.chainId}:${lc(POOL)}:${S.keys.address}${S.keys.pq?.hash ? ':pq' + bytesToHex(S.keys.pq.hash).slice(0, 16) : ''}`;
 // A long read of a chain's history (a first visit: Base's pool holds hundreds of thousands of notes) runs in the sync worker, which writes
 // the same saved state, so the page is not held for seconds at a time; the page's own wallet, made after it, reads only what came after.
 // Not on the private route or the chain alone, which the worker does not take; a worker that goes quiet for a minute and a half is
@@ -1681,7 +1686,7 @@ const PSW = { w: null, n: 0, wait: new Map() };
 function pswDrop() { PSW.w?.terminate(); PSW.w = null; for (const f of PSW.wait.values()) f({ ok: false }); PSW.wait.clear(); }
 function pswWorker() {
   if (PSW.w) return PSW.w;
-  try { PSW.w = new Worker('/evm-pool-sync-worker.js?cb=2f5a0b20', { type: 'module' }); } catch { return null; }
+  try { PSW.w = new Worker('/evm-pool-sync-worker.js?cb=62475fd4', { type: 'module' }); } catch { return null; }
   PSW.w.onmessage = (e) => PSW.wait.get(e.data?.id)?.(e.data);
   PSW.w.onerror = pswDrop;
   return PSW.w;
@@ -1709,7 +1714,7 @@ async function syncInWorker(c, back = false) {
       clearTimeout(quiet); PSW.wait.delete(id); resolve(!!m.ok);
     });
     hush();
-    w.postMessage({ id, priv: hexToBytes(S.key.priv), pool: POOL, router: ROUTER, entries, watch: linkIndex(), back, partial: !st.whole,
+    w.postMessage({ id, priv: hexToBytes(S.key.priv), root: S.pqRoot || null, pool: POOL, router: ROUTER, entries, watch: linkIndex(), back, partial: !st.whole,
       chain: { chainId: c.chainId, keeper: chainKeeper(c), keepers: c.keepers, rpc: c.rpc, deployBlock: c.deployBlock, confirmations: c.confirmations, logChunk: c.logChunk } });
   });
 }
@@ -1756,7 +1761,7 @@ function backfillChain(c) {
     syncChain(c, true).then(() => historyOf(c, true));
   });
 }
-const sealing = lazy(() => import('/evm-pool-wallet.js?cb=2659d634'));
+const sealing = lazy(() => import('/evm-pool-wallet.js?cb=26cf555d'));
 // `whole`: a state that held the whole history is read whole again, in the worker, before a wallet is made from it (syncInWorker, walletOn), and the
 // balance it showed stays on screen, as older history being read, until then; without it the new state begins at a catch-up point.
 async function freshWallet(c, whole = false) {
@@ -4820,9 +4825,31 @@ function renderWalletSheet() {
     <div class="kv"><span>Pays the network fee when you send it yourself</span>${S.wallet ? html`<b>${viewAddr(S.wallet, 6)} <button class="link" type="button" id="w-wc-change">Change account</button> <button class="link" type="button" id="w-wc-off">Disconnect</button></b>` : html`<button class="link" type="button" id="w-conn">Connect wallet</button>`}</div>
     ${routeAvailable() ? html`<p class="more">Your address is hidden from the relay: every request to it goes through a forwarder. The nodes you read the chain through still see it.</p>` : ''}
     <div id="w-up"></div>
+    ${S.pqRoot ? html`<div class="kv"><span>Post-quantum notes<br><small class="mute">Notes sealed against a future quantum computer, by tacit.wei or to your PQ ID, are read here too.</small></span><b>on · <button class="link" type="button" id="w-pq-off">Forget the words here</button></b></div>`
+      : html`<details class="else" id="w-pq"><summary class="more" style="cursor:pointer">Read post-quantum notes</summary>
+        <p class="note">If you turned on post-quantum notes in tacit.wei, or have a PQ ID, its 24 words let this page find the notes sealed to it. They are kept on this device, sealed under your key.</p>
+        <textarea id="w-pq-words" rows="3" placeholder="24 words" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore aria-label="Your 24 words" style="width:100%;font:inherit;padding:10px;border-radius:12px;border:1px solid var(--hair);background:var(--field);color:var(--ink)"></textarea>
+        <button class="btn ghost" type="button" id="w-pq-go">Read them</button><p class="note" id="w-pq-say" role="status"></p></details>`}
     ${kept ? html`<p class="more"><button class="link" type="button" id="w-backup">Copy key to back up</button><button class="link" type="button" id="w-reveal" aria-expanded="false" aria-controls="w-secret">Show key</button></p><div class="keyshow" id="w-secret" role="region" aria-label="Your key" hidden></div>` : ''}
     <p class="note">${kept ? 'This key is kept in this browser only, so clearing the browser’s data loses it. Copy it somewhere private: anyone who has it controls these funds, and pasting it back opens them again.' : k.mode === 'key' ? 'You pasted this key and it is not saved in this browser. This tab holds it until 30 minutes without use, through a reload or a reopened tab. Keep your own copy somewhere private: anyone who has it controls these funds.' : 'Your wallet or passkey is the only way back to these funds: keep it safe.'} The key stays in this tab, and locks after 30 minutes without use; payments to your addresses reach you here and everywhere on tacit.finance.</p>`);
   $('#w-copy').onclick = () => copy(UNIFIED_LIVE ? shownAddress() : k.bp, 'Address copied');
+  // The PQ ID's words: kept sealed under the key (tacit-chain-root.js, as the passkey sign-in keeps it), then the key opened again, so its wallets read with the root
+  $('#w-pq-go')?.addEventListener('click', async () => {
+    const say = $('#w-pq-say');
+    let root;
+    try { root = (await import('/tacit-chain-phrase.js')).phraseToRoot($('#w-pq-words').value); } catch (e) { say.textContent = errText(e); return; }
+    try { keepRoot(k.priv, root, null); } catch (e) { say.textContent = errText(e); return; }
+    $('#w-pq-words').value = '';
+    await setKey(S.key, { quiet: true });
+    renderWalletSheet();
+    toast('Post-quantum notes are read now. The first read goes over the pool’s history again.');
+  });
+  $('#w-pq-off')?.addEventListener('click', async () => {
+    if (!confirm('Forget the 24 words on this device? Notes sealed to them stop showing here until you enter them again. Have them written down first.')) return;
+    dropRoot(k.priv);
+    await setKey(S.key, { quiet: true });
+    renderWalletSheet();
+  });
   $('#w-backup')?.addEventListener('click', () => navigator.clipboard.writeText(k.priv).then(() => toast('Key copied. Keep it somewhere private.'), () => toast('Could not copy the key: the browser refused clipboard access.', true)));
   // Show key: on screen to read or write down, so it never passes through the clipboard; hides on a second tap, on Lock, when the sheet closes and after a minute
   const reveal = $('#w-reveal'), secret = $('#w-secret');
@@ -5132,7 +5159,7 @@ function tokSigner(t) {
   return s;
 }
 const ROUTE_MOD = lazy(() => import('/swap/route.js?cb=c4135f43'));
-const PAY_WITH = lazy(() => import('/pay-with.js?cb=7da32f21'));
+const PAY_WITH = lazy(() => import('/pay-with.js?cb=9c2cc38a'));
 const PAY_TOKENS = lazy(async () => { const [PW, L] = await Promise.all([PAY_WITH(), import('/swap/tokens.js?cb=73f33d2c')]); return PW.payTokens(L.LIST); });
 // Waits for a transaction of the wallet's own on chain `c`; a failed one throws (`failed` says what did not happen).
 async function minedOn(c, h, failed = 'The approval failed. Nothing was lost but its network fee.') {

@@ -1287,6 +1287,33 @@ await test('Receive as a token: Withdraw sells the ETH for the token in the same
   await ctx.close();
 });
 
+await test('Post-quantum notes: the wallet sheet takes the 24 words, keeps them sealed under the key, and the wallet reads with them under its own saved state', async () => {
+  const { rootToPhrase } = await import('../dapp/tacit-chain-phrase.js');
+  const root = new Uint8Array(32).fill(0x2a), words = rootToPhrase(root);
+  const { ctx, page, problems } = await open({ search: '?fixed=0' });
+  await unlock(page);
+  await page.click('#wallet');
+  await page.waitForSelector('#w-pq', { timeout: 30000 });
+  await page.click('#w-pq summary');
+  await page.fill('#w-pq-words', words.split(' ').slice(0, 23).join(' '));
+  await page.click('#w-pq-go');
+  await page.waitForFunction(() => /24 words; this has 23/.test(document.querySelector('#w-pq-say')?.textContent || ''));
+  await page.fill('#w-pq-words', words.toUpperCase());
+  await page.click('#w-pq-go');
+  await page.waitForFunction(() => /Post-quantum notes/.test(document.querySelector('#wallet-body')?.innerText || '') && !!document.querySelector('#w-pq-off'), null, { timeout: 30000 });
+  const kept = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('tacit-chain-root-v1:')).map((k) => localStorage.getItem(k)));
+  assert.equal(kept.length, 1, 'one root kept');
+  assert.ok(!kept[0].includes(Buffer.from(root).toString('hex')), 'sealed, not in the clear');
+  await page.waitForFunction(() => Object.keys(localStorage).some((k) => /^tacit-evm-pool-v1:1:.*:pq[0-9a-f]{16}$/.test(k)), null, { timeout: 60000 });
+  if (SHOTS) await page.locator('#sheet-wallet').screenshot({ path: join(SHOTS, 'pq-on.png') });
+  page.once('dialog', (d) => d.accept());
+  await page.click('#w-pq-off');
+  await page.waitForSelector('#w-pq', { timeout: 30000 });
+  assert.equal(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('tacit-chain-root-v1:')).length), 0, 'forgotten');
+  assert.deepEqual(problems, []);
+  await ctx.close();
+});
+
 await browser.close();
 server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
