@@ -177,6 +177,13 @@ function render() {
   const note = $('#note', root);
   if (note && S.note) { note.className = `status${S.bad ? ' err' : ''}`; note.textContent = S.note; }
 }
+// the side card's delegation row: who this wallet hands its TAC to, and what is handed to it, each with a link to the delegate page
+function dgSide() {
+  const me = S.dg.me, y = S.dg.toYou, out = [];
+  if (me) out.push(`To ${nameFor(me.to) ? esc(nameFor(me.to)) : addrView(me.to, 4)} · <a href="#delegate" data-dg="form">Change</a>`);
+  if (y?.count) out.push(`${esc(fmtTac(y.weight))} TAC to you · <a href="#delegate" data-dg="yours">View</a>`);
+  return out.length ? out.join('<br>') : '<a href="#delegate" data-dg="form">Delegate your vote</a>';
+}
 // the holder's own TAC on each chain, and the way in to each
 function renderSide() {
   const side = $('#side'); if (!side) return;
@@ -194,13 +201,21 @@ function renderSide() {
     </div>
     <div class="side-rule"></div>
     <div class="kv"><span>To open a proposal</span><b class="num">${PROPOSE_FLOOR_TAC} TAC</b></div>
-    ${S.dg.avail === false ? '' : `<div class="kv" id="dg-side"><span>Delegation</span><b>${S.dg.me ? `To ${nameFor(S.dg.me.to) ? esc(nameFor(S.dg.me.to)) : addrView(S.dg.me.to, 4)} · <a href="#delegate">Change</a>` : S.dg.toYou?.count ? `${esc(fmtTac(S.dg.toYou.weight))} TAC to you · <a href="#delegate">View</a>` : '<a href="#delegate">Delegate your vote</a>'}</b></div>`}
+    ${S.dg.avail === false ? '' : `<div class="kv" id="dg-side"><span>Delegation</span><b>${dgSide()}</b></div>`}
     <p class="note">A vote weighs the TAC held when its proposal opened. Vote from one chain or both at once: each counts on its own.</p>
     <p class="note">A Bitcoin vote proves the TAC you hold clears a tier (1, 10, 100… TAC) without showing the amount.</p>`;
   $('#side-connect', side)?.addEventListener('click', () => conn.connect());
   $('#side-tacit', side)?.addEventListener('click', signIn);
   $('#btc-lock', side)?.addEventListener('click', () => { keyS.lock(); });
   $('#btc-retry', side)?.addEventListener('click', readBtc);
+  // from another view these links open the delegate page; on it, a link to the page it is on takes you to the part it names
+  side.querySelectorAll('[data-dg]').forEach((a) => a.addEventListener('click', (e) => {
+    if (S.route.name !== 'delegate') return;
+    e.preventDefault();
+    if (a.dataset.dg === 'yours') { $('#dg-yours')?.scrollIntoView({ block: 'start' }); return; }
+    const f = $('#dg-to');
+    if (f) { f.scrollIntoView({ block: 'center' }); f.focus(); } else conn.connect();
+  }));
 }
 
 function listView() {
@@ -411,7 +426,7 @@ function delegateView() {
       <button class="btn" type="submit" id="dg-go" ${S.busy ? 'disabled' : ''}>${goLabel()}</button>
       <p class="status" id="note" aria-live="polite"></p>
     </form>
-    <div class="sec"><p class="eyebrow">Delegated to you <span class="who">${yours ? yours.count : 0}${yours?.count ? ` · ${esc(fmtTac(yours.weight))} TAC` : ''}</span></p>${list}</div>`
+    <div class="sec" id="dg-yours"><p class="eyebrow">Delegated to you <span class="who">${yours ? yours.count : 0}${yours?.count ? ` · ${esc(fmtTac(yours.weight))} TAC` : ''}</span></p>${list}</div>`
     : `<div class="sec"><button class="btn" type="button" id="dg-connect">Connect wallet</button></div>`}
     <p class="note">This covers the TAC in your Ethereum wallet. TAC on Bitcoin, or shielded, votes from its own key and is not delegated. Your wallet asks you to sign a message that names the delegate and what they can do. Delegations are public: anyone can see who a wallet delegates to.</p>`;
 }

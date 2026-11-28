@@ -304,6 +304,8 @@ let id2;
   ok(drec && drec.history.length === 1 && drec.history[0].to === rich.addr && drec.history[0].rights === 'vote', 'the worker recorded it under the signing account');
   ok(new RegExp(rich.addr.slice(2, 8), 'i').test(await text(page, '.sec')) && await page.$('#dg-off'), 'the page shows the delegate and a way to take it back');
   ok(/To 0x/i.test(await text(page, '#dg-side')), 'and the side card names them');
+  await page.click('#dg-side a[data-dg="form"]');
+  ok(await page.evaluate(() => document.activeElement?.id) === 'dg-to', 'Change in the side card, on the delegate page, puts the cursor in the delegate field');
   ok(errs.length === 0 && csp.length === 0, `no script errors and nothing the CSP refused (${errs.concat(csp).join(' | ')})`);
   await page.context().close();
 }
@@ -398,6 +400,30 @@ let id2;
   ok(after.history.at(-1).to === rich.addr, 'the worker recorded that address');
   ok(/rich\.wei · 0x/i.test(await text(page, '.sec .kv b')) && /To rich\.wei/.test(await text(page, '#dg-side')), 'and the page shows the name beside it, in the card as well');
   ok(errs.length === 0 && csp.length === 0, `no script errors and nothing the CSP refused (${errs.concat(csp).join(' | ')})`);
+  await page.context().close();
+}
+
+// 2b2. the side card's delegation links work from every view, including the delegate page itself
+{
+  const { page, errs, csp } = await open(rich, '#delegate', { viewport: { width: 1280, height: 520 } });
+  await connect(page);
+  await page.waitForFunction(() => /TAC to you/.test(document.querySelector('#dg-side')?.textContent || ''));
+  await page.click('#dg-side a[data-dg="yours"]');
+  await page.waitForFunction(() => { const r = document.querySelector('#dg-yours')?.getBoundingClientRect(); return r && r.top >= 0 && r.top < innerHeight / 2; }, null, { timeout: 5e3 });
+  ok(await page.evaluate(() => location.hash) === '#delegate', 'View, on the delegate page, scrolls to the holders delegated to you');
+  await page.evaluate(() => { location.hash = ''; });
+  await page.waitForSelector('.props');
+  await page.click('#dg-side a[data-dg="yours"]');
+  await page.waitForSelector('#dgform');
+  ok(await page.evaluate(() => location.hash) === '#delegate', 'and from the proposal list it opens the delegate page');
+  ok(errs.length === 0 && csp.length === 0, `no script errors and nothing the CSP refused (${errs.concat(csp).join(' | ')})`);
+  await page.context().close();
+}
+{
+  const { page } = await open(poor, '#delegate');
+  await page.click('#dg-side a[data-dg="form"]');
+  await page.waitForSelector('.bsheet .way:has-text("Test wallet")', { timeout: 10e3 });
+  ok(true, 'Delegate your vote, on the delegate page with no wallet connected, opens the wallet sheet');
   await page.context().close();
 }
 
