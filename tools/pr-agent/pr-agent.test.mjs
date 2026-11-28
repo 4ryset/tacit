@@ -193,6 +193,8 @@ try {
     const r = await cli(root, req(), ['--dry-run'], { PR_AGENT_RETRY_MS: '5' }); badJson = 0;
     check('a model that never writes valid tool-call JSON ends the run as an error after three more tries, not forever', r.result?.status === 'error' && /parse tool call/i.test(r.result.summary || ''), r.result?.summary?.slice(0, 80)); }
   check('the prompt says what a real test must do: import the real code, not copy its logic', /import the real module and call the real code/.test(SYSTEM));
+  check('it asks for a test on every behavior change, an extracted function when the code cannot be imported, the awkward inputs, and an honest SUGGEST when no real test is possible',
+    /Every change to behavior needs a test/.test(SYSTEM) && /move just that logic into a small exported function/.test(SYSTEM) && /not a number, negative, very large/.test(SYSTEM) && /call finish with "SUGGEST: "/.test(SYSTEM));
   // units
   check('defang breaks @mentions and #refs', defang('hi @bob see #12') === 'hi @​bob see #​12');
   check('a title is one short line without the SUGGEST/NOTHING prefix', prTitle('SUGGEST: trim the name\nplease') === 'trim the name please' && prTitle('x') === 'small fix' && prTitle('a'.repeat(200)).length <= 72);
