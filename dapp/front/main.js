@@ -10066,7 +10066,10 @@ function paintDash0() {
   if (DASH.id !== id) { if (!(id in DASH.bases)) DASH.bases[id] = store.get(id); Object.assign(DASH, { id, base: DASH.bases[id], cur: {} }); }
   const base = DASH.base?.v || {}, k = S.key?.pubHex;
   const items = dashItems().filter((it) => it.core || it.show || Number(base[it.key]?.v || 0) > 0);
-  const worth = k ? dashWorth(items) : null, tot = $('#hold-tot'), delta = {};
+  // A connected public wallet has a complete public portfolio even when its
+  // Tacit key is still locked. Do not leave the aggregate blank while the
+  // individual public rows are already priced.
+  const worth = id ? dashWorth(items) : null, tot = $('#hold-tot'), delta = {};
   for (const it of items) {
     const raw = base[it.key]?.v, prev = it.noDelta || raw == null ? null : it.num ? (Number.isFinite(Number(raw)) ? Number(raw) : null) : big(raw);
     if (it.v != null && prev != null) {
