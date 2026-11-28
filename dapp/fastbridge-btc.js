@@ -49,9 +49,10 @@ export function makeEsploraBtcChain({ bases, tacit, prims, builder, pool, ethGet
   const underWay = new Map();
 
   // The first explorer that has the answer. A 404 from one is not the end of the search (another may know a newer
-  // transaction); when none has it the 404 is the answer when every explorer that was asked said so or two agree, and when none could answer it is an
+  // transaction); when none has it the 404 is the answer when every explorer that was asked said so or two agree (for a status look, two agreeing
+  // with no other failure end the search: a transaction not out yet is not asked of every explorer on each look), and when none could answer it is an
   // error. One explorer's 404 beside others that failed is not an answer (the one that said 404 may be the one that lags), so it is an error to ask again.
-  async function ask(path, init) {
+  async function ask(path, init, quick = false) {
     let last = null, notFound = null, notFounds = 0;
     for (const b of askOrder()) {
       try {
@@ -59,16 +60,16 @@ export function makeEsploraBtcChain({ bases, tacit, prims, builder, pool, ethGet
         const text = (await r.text()).trim();
         if (r.ok) { healed(b); return text; }
         const err = Object.assign(new Error(`${path} -> ${r.status} ${text.slice(0, 160)}`), { status: r.status });
-        if (r.status === 404) { healed(b); notFound ||= err; notFounds++; } else { last = err; if (r.status === 429 || r.status >= 500) coolDown(b, retryAfter(r), `HTTP ${r.status}`); }
+        if (r.status === 404) { healed(b); notFound ||= err; if (++notFounds >= 2 && !last && quick) break; } else { last = err; if (r.status === 429 || r.status >= 500) coolDown(b, retryAfter(r), `HTTP ${r.status}`); }
       } catch (e) { last = e; coolDown(b, 0, e && e.name === 'TimeoutError' ? 'timed out' : (e && e.cause && e.cause.code) || (e && e.message) || e); }
     }
     if (notFound && (!last || notFounds >= 2)) throw notFound;
     throw last || notFound;
   }
-  async function req(path, init) {
+  async function req(path, init, quick = false) {
     if (init) { await takeSlot(); try { return await ask(path, init); } finally { giveSlot(); } }
     if (underWay.has(path)) return underWay.get(path);
-    const p = (async () => { await takeSlot(); try { return await ask(path, init); } finally { giveSlot(); } })().finally(() => underWay.delete(path));
+    const p = (async () => { await takeSlot(); try { return await ask(path, init, quick); } finally { giveSlot(); } })().finally(() => underWay.delete(path));
     underWay.set(path, p);
     return p;
   }
@@ -89,7 +90,7 @@ export function makeEsploraBtcChain({ bases, tacit, prims, builder, pool, ethGet
   }
   const tip = async () => Number(await req('/blocks/tip/height'));
   async function status(txid) {
-    const st = await orNull(() => getJson(`/tx/${need(txid)}/status`));
+    const st = await orNull(async () => JSON.parse(await req(`/tx/${need(txid)}/status`, undefined, true)));
     if (!st || !st.confirmed) return { confirmations: 0, height: 0 };
     return { confirmations: (await tip()) - st.block_height + 1, height: st.block_height };
   }
@@ -108,7 +109,7 @@ export function makeEsploraBtcChain({ bases, tacit, prims, builder, pool, ethGet
   // An estimate above the ceiling (sat/vB) is a mistake or a lie; no fee market has been near it.
   const FEE_RATE_CEILING = 5000, FEE_RATE_SPREAD = 8;
   let fee = null, feeRead = null, feeLost = null;
-  async function readFee() {
+  async function readFee(target = feeTarget) {
     const why = [];
     // Three explorers are asked first (the ones that answered lately, in turn: askOrder), and the rest only when fewer than two of them gave an estimate; one that
     // fails is left alone for a while like any other read (coolDown), so a dead explorer is not asked again with every estimate.
@@ -117,7 +118,7 @@ export function makeEsploraBtcChain({ bases, tacit, prims, builder, pool, ethGet
       try {
         const r = await fetchImpl(b + '/fee-estimates', { signal: AbortSignal.timeout(timeoutMs) });
         if (!r.ok) { why.push(`${host} ${r.status}`); coolDown(b, retryAfter(r), `fee estimate ${r.status}`); return null; }
-        const f = await r.json(), v = Number(f[feeTarget] ?? f['6']);
+        const f = await r.json(), v = Number(f[target] ?? f['6']);
         if (Number.isFinite(v) && v > FEE_RATE_CEILING) { why.push(`${host} gave an implausible estimate`); return null; }
         if (Number.isFinite(v) && v > 0) { healed(b); return v; }
         why.push(`${host} gave no estimate`); return null;
@@ -135,6 +136,17 @@ export function makeEsploraBtcChain({ bases, tacit, prims, builder, pool, ethGet
     // one explorer's word alone is held to `soloFeeCeiling` (sat/vB): a rate above it is taken only when two say so
     if (seen.length === 1) return Math.max(1, minFeeRate, Math.ceil(Math.min(seen[0], soloFeeCeiling)));
     return Math.max(1, minFeeRate, Math.ceil(seen.length % 2 ? seen[(seen.length - 1) / 2] : (seen[seen.length / 2 - 1] + seen[seen.length / 2]) / 2));
+  }
+  // What the explorers give for the NEXT block (target 1), read the same way: a lock that a block went by without is bumped to this, not to the target the
+  // party sends at (a three-block estimate runs under what a block takes when a backlog builds: a lock bumped to it on 2026-11-28 waited three more blocks)
+  let nextFee = null, nextRead = null;
+  async function nextFeeRate(maxAgeMs = 60000) {
+    const t = nowMs();
+    if (nextFee && t - nextFee.at < maxAgeMs) return nextFee.v;
+    try {
+      nextRead ||= readFee('1').then((v) => { nextFee = { v, at: nowMs() }; return v; }).finally(() => { nextRead = null; });
+      return await nextRead;
+    } catch (e) { if (nextFee && t - nextFee.at < feeStaleMs) return nextFee.v; return feeRate(0); }
   }
   async function feeRate(maxAgeMs = feeFreshMs) {          // a caller that wants it newer than a quote needs it (the LP's tick) says so
     const t = nowMs();
@@ -220,14 +232,15 @@ export function makeEsploraBtcChain({ bases, tacit, prims, builder, pool, ethGet
     }
     return out.sort((a, b) => b.value - a.value);
   }
-  // the same bytes to every explorer; one that takes it (or already has it) is enough
+  // the same bytes to each explorer in turn until one takes it (or already has it): its node passes it on to the network, and a second copy
+  // would only be refused as known (a refusal a page shows as an error, and two explorers send it without the header a page needs to read it)
   async function post(hex) {
     let took = false, last = 'no explorer answered';
     for (const b of list) {
       try {
         const r = await fetchImpl(b + '/tx', { method: 'POST', body: hex, headers: { 'content-type': 'text/plain' }, signal: AbortSignal.timeout(timeoutMs) });
         const text = (await r.text()).trim();
-        if (r.ok || KNOWN.test(text)) took = true; else last = text.slice(0, 160);
+        if (r.ok || KNOWN.test(text)) { took = true; break; } else last = text.slice(0, 160);
       } catch (e) { last = String((e && e.message) || e).slice(0, 160); }
     }
     if (!took) throw new Error(`broadcast refused: ${last}`);
@@ -304,5 +317,5 @@ export function makeEsploraBtcChain({ bases, tacit, prims, builder, pool, ethGet
     return null;
   }
 
-  return { prims, wallet, tx: builder, address, satsUtxos, satsCoins, coinsIn, feeRate, broadcast, fetchTx, status, tip, blockTime, outspend, lockAgreed, history, resolveNote, crossLaneBlocked };
+  return { prims, wallet, tx: builder, address, satsUtxos, satsCoins, coinsIn, feeRate, nextFeeRate, broadcast, fetchTx, status, tip, blockTime, outspend, lockAgreed, history, resolveNote, crossLaneBlocked };
 }

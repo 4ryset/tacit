@@ -1,7 +1,7 @@
-import '/relay-route.js?cb=7a415964';
+import '/relay-route.js?cb=99898ecb';
 import { mountChart, fmtLocalStamp, fmtLocalTime } from '/trade/chart.js?cb=c0b1d232';
-import { makeConnect, UserStopped } from '/trade/connect.js?cb=514272b7';
-import { makeKeySession, signInSheet, pickWalletSheet, Cancelled } from '/trade/key.js?cb=e9a3a06d';
+import { makeConnect, UserStopped } from '/trade/connect.js?cb=c1a728a3';
+import { makeKeySession, signInSheet, pickWalletSheet, Cancelled } from '/trade/key.js?cb=6d715552';
 import { readPool, heldHistory, heldBars, rangesFor, barSize, recentMoves, movedSince, readRates, readProgram, poolRows, positionsIn, programEnds, wrapQuote, shown, POOL, WRAP_TIP } from '/teth/read.js?cb=3784b81d';
 import { wrapEth, wrapFirst, settle, readHeld, finish, wrapIssue, relayWords, selfable, selfFinish, settleCost, proveOwn, ownWords, ownable, deviceWords, relayState, relayStopped, forgetUx, getUx } from '/teth/wrap.js?cb=ce5e16c2';
 import { ownPref, setOwnPref, devicePref, setDevicePref, deviceProver, proverFor, readCredit, proofsFor, fundFromWallet, quoteEth, quoteEthFor, fundWithEth, loadSelfProver, tokenBalance } from '/teth/prover.js?cb=f9644c86';
@@ -9,7 +9,7 @@ import { overlay } from '/trade/sheet.js?cb=d857446c';
 import { addrFlat } from '/address-view.js?cb=58dd4914';
 import { mountDepth } from '/trade/depth.js?cb=4f87419e';
 import { candlesFromTrades, closeAt } from '/trade/tape.js?cb=337da1f0';
-import { readMarket, isActive, bookState, refSats, premium, vsEth, satsTxt, ladders, bookPrime, summary, fillBars, BTC_ID } from '/teth/market.js?cb=247c29e9';
+import { readMarket, isActive, bookState, refSats, premium, vsEth, satsTxt, ladders, bookPrime, summary, fillBars, BTC_ID } from '/teth/market.js?cb=6937f675';
 import { $, esc, now, rpc, fmtUnits, plain, parseUnits, grp, sig, usd, pct, ago, short, E10, E18 } from '/trade/util.js?cb=9c8b4133';
 
 const ETHBLUE = '#627eea', ORANGE = '#f7931a';
@@ -183,7 +183,7 @@ function notify(msg, kind = '', ms = 5000) {
 }
 async function openBitcoin(prime = null) {
   try {
-    bitcoin ||= (await import('/trade/btc.js?cb=02ca566b')).makeBitcoin({ notify, onTraded: () => loadMarket().then(paintAll).catch(() => {}),
+    bitcoin ||= (await import('/trade/btc.js?cb=008ffd43')).makeBitcoin({ notify, onTraded: () => loadMarket().then(paintAll).catch(() => {}),
       asset: { id: BTC_ID, title: 'tETH on Bitcoin', ticker: 'tETH', decimals: 8, bound: true, after: 'tETH reaches Bitcoin through the bridge: <a href="/#private/bitcoin/out">Bridge →</a>' } });
     await bitcoin.open(prime);
   } catch (e) { notify(`Could not open the Bitcoin market: ${e?.message || e}`, 'error', 9000); }

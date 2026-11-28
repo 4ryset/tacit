@@ -22,8 +22,8 @@
 <link rel="preconnect" href="https://api.tacit.finance" crossorigin>
 <!-- preload-roots: /govern/app.js -->
 <!-- preload:begin -->
-<link rel="modulepreload" href="/govern/app.js?cb=ae6b170b">
-<link rel="modulepreload" href="/trade/connect.js?cb=514272b7">
+<link rel="modulepreload" href="/govern/app.js?cb=364c65c8">
+<link rel="modulepreload" href="/trade/connect.js?cb=c1a728a3">
 <link rel="modulepreload" href="/walletconnect.js?cb=4740866f">
 <link rel="modulepreload" href="/eth-nodes.js">
 <link rel="modulepreload" href="/wallet-prompts.js">
@@ -38,19 +38,19 @@
 <link rel="modulepreload" href="/trade/fmt.js?cb=172824e5">
 <link rel="modulepreload" href="/address-view.js?cb=58dd4914">
 <link rel="modulepreload" href="/trade/farm-read.js?cb=fb6ec72f">
-<link rel="modulepreload" href="/trade/key.js?cb=e9a3a06d">
+<link rel="modulepreload" href="/trade/key.js?cb=6d715552">
 <link rel="modulepreload" href="/vendor/tacit-deps.min.js" fetchpriority="high">
 <link rel="modulepreload" href="/prf-wallet.js">
 <link rel="modulepreload" href="/tacit-chain-root.js">
 <link rel="modulepreload" href="/tacit-wallet-known.js?cb=ec5b5193">
 <link rel="modulepreload" href="/evm-wallet.js?cb=ed67f38d">
 <link rel="modulepreload" href="/identity-message.js">
-<link rel="modulepreload" href="/trade/sign-in.js?cb=62608560">
+<link rel="modulepreload" href="/trade/sign-in.js?cb=ce1ac266">
 <link rel="modulepreload" href="/sign-wait.js?cb=ab42ced1">
-<link rel="modulepreload" href="/tab-key.js?cb=e90d6a31">
-<link rel="modulepreload" href="/trade/btc-session.js?cb=185e1bbc">
+<link rel="modulepreload" href="/tab-key.js?cb=18dd5b40">
+<link rel="modulepreload" href="/trade/btc-session.js?cb=b5f81297">
 <link rel="modulepreload" href="/tacit-session.js?cb=4636e436">
-<link rel="modulepreload" href="/govern/message.js?cb=c73bd573">
+<link rel="modulepreload" href="/govern/message.js?cb=7d912cb1">
 <link rel="modulepreload" href="/prove/invader.js?cb=e8a5ec59">
 <!-- preload:end -->
 <style>
@@ -176,6 +176,7 @@ button, select, input { font: inherit; color: inherit; letter-spacing: inherit; 
 .chip-f { padding: 6px 13px; border: 1px solid var(--hair-2); border-radius: 999px; background: transparent; cursor: pointer; font-size: 12px; color: var(--mute); }
 .chip-f.on { background: var(--ink); color: var(--card); border-color: var(--ink); }
 .btn.sm { width: auto; min-height: 36px; padding: 6px 14px; margin: 0; font-size: 12.5px; border-radius: 10px; }
+.bar-r { display: inline-flex; gap: 8px; align-items: center; }
 .props { display: grid; gap: 10px; }
 .prop { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--hair); border-radius: 12px; text-decoration: none; background: var(--field); transition: border-color .15s; }
 .prop b { font-weight: 500; }
@@ -431,6 +432,7 @@ header.top .chip:focus-visible { outline: 2px solid var(--orange); outline-offse
 .sh-t.pill a[aria-current="page"] { background: none; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .sh-t .sh-i { transition: none; } }
 .sh p.sh-n { margin-top: 14px; max-width: 52em; font-size: 12.5px; color: var(--faint, var(--mute)); min-height: 1.5em; }
+.sh p.sh-n:empty { display: none; }      /* a view that has no line of its own (DeFi's Swap: the card says it) */
 .sh.sh-l { max-width: 560px; text-align: left; } .sh.sh-l .sh-more { margin-top: 18px; }
 @media (hover: hover) { .sh-t a:hover { color: var(--ink); } }
 @media (max-width: 520px) { .sh { margin-top: 18px; } .sh-t { display: grid; grid-auto-columns: 1fr; } .sh-t a { padding: 6px 6px; font-size: 12px; } }
@@ -562,7 +564,7 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
 @font-face { font-family: 'Instrument Serif Fallback N'; src: local('Noto Serif'), local('NotoSerif'); size-adjust: 70.5%; ascent-override: 140.4%; descent-override: 44%; line-gap-override: 0%; }
 @font-face { font-family: 'Instrument Serif Fallback N'; font-style: italic; src: local('Noto Serif Italic'), local('NotoSerif-Italic'); size-adjust: 76.3%; ascent-override: 129.7%; descent-override: 40.6%; line-gap-override: 0%; }
 </style>
-<script src="/chrome.js?cb=1118f1b1" defer></script>
+<script src="/chrome.js?cb=1c128f47" defer></script>
 <!-- chrome:head:end -->
 </head>
 <body>
@@ -586,7 +588,7 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
           <a href="/vault/" title="Borrow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9.5L12 4l9 5.5"/><path d="M5.5 10v8M10 10v8M14 10v8M18.5 10v8"/><path d="M3 20.5h18"/></svg><span>Borrow</span></a>
           <a href="/rewards/" title="Rewards"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8"/><path d="M7.5 8a2.5 2.5 0 1 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 1 1 0 5"/></svg><span>Rewards</span></a>
           <details class="sm">
-            <summary aria-label="More pages" title="More"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.7"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.7"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.7"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.7"/></svg></summary>
+            <summary aria-label="More pages" title="More" class="here"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.7"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.7"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.7"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.7"/></svg></summary>
             <div class="sm-p">
             <a class="pr" href="/vault/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9.5L12 4l9 5.5"/><path d="M5.5 10v8M10 10v8M14 10v8M18.5 10v8"/><path d="M3 20.5h18"/></svg>Borrow</a>
             <a class="pr" href="/rewards/"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8"/><path d="M7.5 8a2.5 2.5 0 1 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 1 1 0 5"/></svg>Rewards</a>
@@ -604,6 +606,7 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
             <a href="/prove/"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg>Prove</a>
             <a href="/tasks/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Tasks</a>
             <a href="/praxis/"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15.5" r="4.5"/><path d="M11.2 12.3L20 3.5"/><path d="M17 6.5l2.5 2.5"/><path d="M14.5 9l2 2"/></svg>Praxis</a>
+            <a href="/govern/" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 14h14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M8 14V4.5h8V14"/><path d="M10.2 8.7l1.3 1.3 2.4-2.6"/></svg>Govern</a>
             </div>
           </details>
         </nav>
@@ -644,10 +647,10 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
     <a href="/#/payments"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h14"/><path d="M13 6l6 6-6 6"/></svg><span>Pay</span></a>
     <a href="/#/defi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10l-3-3"/><path d="M17 17H7l3 3"/></svg><span>DeFi</span></a>
     <a href="/#/chains"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12h6"/><path d="M7 8a4 4 0 0 0 0 8"/><path d="M17 8a4 4 0 0 1 0 8"/></svg><span>Bridge</span></a>
-    <a href="/#/menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg><span>More</span></a>
+    <a href="/#/menu" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg><span>More</span></a>
   </nav>
   <!-- chrome:foot:end -->
 </div>
-<script type="module" src="/govern/app.js?cb=ae6b170b"></script>
+<script type="module" src="/govern/app.js?cb=364c65c8"></script>
 </body>
 </html>

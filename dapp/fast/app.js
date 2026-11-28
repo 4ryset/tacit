@@ -1,10 +1,10 @@
-import { openBtcWallet } from '/trade/btc-session.js?cb=185e1bbc';
+import { openBtcWallet } from '/trade/btc-session.js?cb=b5f81297';
 import { isPasskeyAvailable } from '/prf-wallet.js';
-import { makeKeySession, signInSheet } from '/trade/key.js?cb=e9a3a06d';
+import { makeKeySession, signInSheet } from '/trade/key.js?cb=6d715552';
 import { makeTacitSession } from '/tacit-session.js?cb=4636e436';
 import { getUx as loadUx, forgetUx } from '/trade/poolux.js?cb=59d125e5';
 import { onMainnet, connectedInjected } from '/eth-nodes.js';
-import { mountFast } from '/fast/ui.js?cb=db9bcef1';
+import { mountFast } from '/fast/ui.js?cb=150d4bc2';
 import { mountProvide } from '/fast/provide.js?cb=93ae1cc8';
 import { mountBound } from '/fast/bound.js?cb=f0f32804';
 import { mountReverse } from '/fast/reverse.js?cb=826337bd';
@@ -17,11 +17,11 @@ import { invaderSvg } from '/prove/invader.js';
 // (docs/FAST-BRIDGE.md). The providers are the ones /fast/lp.json names, each with the key it signs for, and the ones that post
 // their ads on the boards it names. A provider run on this machine can be named in the address
 // (?lp=<url>&claimPub=<hex>&board=<url>) when the page is open from localhost.
-const TACIT_URL = '/tacit.js?cb=62ba2f62';
+const TACIT_URL = '/tacit.js?cb=dd8b0a1f';
 // the bridge itself (the lock, the settle, the key's own provider) loads when a key opens; a touch on the page fetches its modules ahead
 let warmed = false;
 const warm = () => { if (warmed) return; warmed = true; const t = document.getElementById('warm'); if (t) document.head.append(t.content.cloneNode(true)); };
-const wire = () => { warm(); return import('/fast/wire.js?cb=30d256dc'); };
+const wire = () => { warm(); return import('/fast/wire.js?cb=b9f766f3'); };
 for (const ev of ['pointerdown', 'focusin']) document.querySelector('main')?.addEventListener(ev, warm, { once: true });
 
 async function lists() {
@@ -92,6 +92,12 @@ const notify = (text) => {
 // /fast/#with=<id>: a provider's pairing link (fast/fmt.js pairId), kept for this visit
 const PIN = (/^#with=([0-9a-f]{16})$/i.exec(location.hash) || [])[1]?.toLowerCase() || null;
 const signIn = () => signInSheet(keyS, { why: 'Open your Tacit wallet to bridge or provide TAC.' });
+// the header's chip, as on the section's other tabs: Sign in opens the wallet; signed in, it says so and a press signs out
+{
+  const chip = document.getElementById('wallet'), label = document.getElementById('wallet-label'), dot = document.getElementById('wallet-dot');
+  const paint = () => { const on = !!keyS.unlocked; label.textContent = on ? 'Signed in' : 'Sign in'; dot.className = `dot${on ? ' on' : ''}`; chip.title = on ? 'Sign out' : 'Open your Tacit wallet'; };
+  if (chip) { chip.addEventListener('click', () => { if (keyS.unlocked) keyS.lock(); else signIn().catch?.(() => {}); }); keyS.onChange(paint); paint(); }
+}
 const faces = new Map();
 const face = (id) => {
   try {

@@ -263,6 +263,31 @@ test('a note made by a bind is never kept as proved: the next walk reads it agai
   assert.ok(!known.includes(`${tid(70)}:0`), 'the bound parent is not: its standing on Ethereum can change');
 });
 
+test('a broadcast stops at the first explorer that takes it: a second copy would only be refused as known (an error in the page)', async () => {
+  const posts = [];
+  const { btc } = chainOf(['refuses.test', 'takes.test', 'third.test'], (u) => { posts.push(u.hostname); return u.hostname === 'refuses.test' ? json('bad-txns-inputs-missingorspent', 400) : json(tid(9)); });
+  await btc.broadcast({ commitHex: null, revealHex: 'ab' });
+  assert.deepEqual(posts, ['refuses.test', 'takes.test'], 'tried the next after a refusal, and none after the one that took it');
+});
+
+test('a status look at a transaction not out yet stops at two explorers that agree, and a lone 404 beside a failure is still not an answer', async () => {
+  const { btc, seen } = chainOf(['a.test', 'b.test', 'c.test', 'd.test'], () => gone());
+  assert.deepEqual(await btc.status(tid(5)), { confirmations: 0, height: 0 });
+  assert.equal(seen.length, 2, 'two asked, not every explorer');
+  const two = chainOf(['down.test', 'a.test', 'b.test'], (u) => (u.hostname === 'down.test' ? json('oops', 502) : gone()));
+  assert.deepEqual(await two.btc.status(tid(6)), { confirmations: 0, height: 0 });
+  assert.equal(two.seen.length, 3, 'after a failure every explorer is asked');
+  const has = chainOf(['a.test', 'b.test', 'c.test'], (u) => (u.hostname === 'c.test' ? json({ confirmed: false }) : gone()));
+  await has.btc.fetchTx(tid(7)).catch(() => {});
+  assert.equal(has.seen.length, 3, 'a read of the transaction itself still asks every explorer (a note is never denied on two lagging ones)');
+});
+
+test('the next block\'s rate is read from the explorers\' target 1, apart from the rate a party sends at', async () => {
+  const { btc } = chainOf(['a.test', 'b.test', 'c.test'], (u) => (u.pathname.endsWith('/fee-estimates') ? json({ 1: 9.2, 3: 2.1, 6: 1.5 }) : gone()), { feeTarget: '3' });
+  assert.equal(await btc.feeRate(), 3, 'the party\'s own target (3 blocks), rounded up');
+  assert.equal(await btc.nextFeeRate(), 10, 'the next block (target 1), rounded up');
+});
+
 let passed = 0;
 for (const [name, fn] of tests) {
   try { await fn(); passed++; console.log(`  ok - ${name}`); } catch (e) { console.log(`  FAIL - ${name}\n${e.stack}`); process.exitCode = 1; }

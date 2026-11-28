@@ -73,7 +73,7 @@
 (() => {
   const nav = document.querySelector('.sn');
   if (!nav || document.getElementById('act')) return;
-  import('/activity.js').then(({ activityCount, onActivity }) => {
+  const start = () => import('/activity.js').then(({ activityCount, onActivity }) => {
     const a = document.createElement('a'), n = document.createElement('b');
     a.className = 'sa'; a.href = '/#activity'; a.hidden = true;
     a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>';
@@ -89,6 +89,9 @@
     addEventListener('focus', paint);
     setInterval(() => { if (!document.hidden) paint(); }, 30e3);
   }).catch(() => {});
+  if ('requestIdleCallback' in window) requestIdleCallback(start, { timeout: 2000 });
+  else if (document.readyState === 'complete') setTimeout(start, 0);
+  else addEventListener('load', () => setTimeout(start, 0), { once: true });
 })();
 
 (() => {
@@ -96,7 +99,10 @@
   let on = LIVE;
   try { const v = localStorage.getItem('tacit.help'); on = v === 'on' || (LIVE && v !== 'off'); } catch { }
   if (!on || window.top !== window.self || location.pathname.startsWith('/help')) return;
-  import('/help/widget.js').catch(() => {});
+  const start = () => import('/help/widget.js').catch(() => {});
+  if ('requestIdleCallback' in window) requestIdleCallback(start, { timeout: 2500 });
+  else if (document.readyState === 'complete') setTimeout(start, 250);
+  else addEventListener('load', () => setTimeout(start, 250), { once: true });
 })();
 
 (() => {
@@ -151,11 +157,11 @@
   // (written as JSON: build/chrome.mjs reads this table to stamp the head into the pages that are a view by their path)
   const SEC = {
     "payments": ["Pay", "Send to anyone, ask to be paid, or leave TAC for someone with no wallet yet.", [
-      ["send", "Send", "/#/payments/send", "One send for every asset: private TAC, ETH, cUSD, cBTC, TAC on the Tacit chain, BTC. To a tacit1 address, a name or 0x."],
-      ["request", "Request", "/#/payments/request", "Ask to be paid in any asset: a link and a QR that open the payment, filled in."],
-      ["links", "Claim links", "/tac/?v=links#pool/send", "Leave TAC for someone with no wallet yet, with a PIN if you like; take it back if they never claim."]]],
+      ["send", "Send", "/#/payments/send", ""],
+      ["request", "Request", "/#/payments/request", ""],
+      ["links", "Claim links", "/tac/?v=links#pool/send", ""]]],
     "defi": ["DeFi", "Swap, farm and stake, privately when you want.", [
-      ["swap", "Swap", "/#/defi/swap", "Public or private swaps at the best route."],
+      ["swap", "Swap", "/#/defi/swap", ""],
       ["farm", "Farm", "/farm/", "Pick a farm, put ETH in, earn TAC."],
       ["stake", "Stake", "/tac/?v=stake#private", "Stake TAC on the Tacit chain: it earns a share of every payment, with no lock."]]],
     "chains": ["Bridge", "Move money between Bitcoin and Ethereum.", [
@@ -171,7 +177,7 @@
   };
   // the More page's line for each page of the menu
   const ABOUT = { '/assets/': 'TAC, tETH, cBTC, cUSD and how each is backed', '/tac/': 'the Tacit chain: stake, pay, bridge', '/trade/tac/?src=menu': 'buy and sell TAC: Ethereum pools, a Bitcoin order book', '/pay/': 'BTC, TAC and ETH paid privately from one key', '/bridge/': 'every way between Bitcoin and Ethereum', '/btc/': 'swap Bitcoin and ETH directly, either way',
-    '/etch/': 'issue your own asset', '/shop/': 'addresses that start with zeros, for TAC', '/prove/': 'run a prover, send waiting settles', '/tasks/': 'small jobs paid in TAC', '/face/': 'buy TAC: the biggest buyer wins the address', '/praxis/': 'help build the key for smart contracts on Bitcoin' };
+    '/etch/': 'issue your own asset', '/shop/': 'addresses that start with zeros, for TAC', '/prove/': 'run a prover, send waiting settles', '/tasks/': 'small jobs paid in TAC', '/face/': 'buy TAC: the biggest buyer wins the address', '/praxis/': 'help build the key for smart contracts on Bitcoin', '/govern/': 'TAC holders signal on proposals, voting from Bitcoin or Ethereum' };
   // the mock-up's addresses for what is a page, a sheet or another address here
   const ELSE = { '#/portfolio': '/#portfolio', '#/defi/earn': '/#card=earn', '#/borrow': '/vault/', '#/borrow/btc': '/vault/#btc', '#/borrow/tac': '/vault/', '#/rewards': '/rewards/', '#/more': '/#/menu', '#/activity': '/#activity',
     '#/account': '/#wallet', '#/account/wallet': '/#wallet', '#/account/addresses': '/#bitcoin/receive', '#/account/proofs': '/#prove-self' };
@@ -212,7 +218,7 @@
   // A view opens the folds its page keeps shut that the view is for: the fast bridge's provider panel. At once, so it is open at the first paint;
   // once only, so a fold the holder shuts stays shut. The page's script fills a fold when it is told it opened, and may not have been listening
   // yet: once the page has loaded it is told again (each filler leaves a fold it has filled alone).
-  const FOLDS = { 'chains/fast': ['provide'] };
+  const FOLDS = {};
   const folds = (key) => {
     const mine = [];
     for (const id of FOLDS[key] || []) { const d = document.getElementById(id); if (d && !d.dataset.secOpen) { d.dataset.secOpen = '1'; if (!d.open) { d.open = true; mine.push(d); } } }

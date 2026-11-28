@@ -167,16 +167,16 @@ function updateCacheBust(htmlBytes, appJsBytes, prebootBytes) {
 }
 
 // dapp/sats/ is its own page with its own module graph. Every `"/<path>.js?cb=<token>"` it references
-// carries a sha256 prefix of the file it names, rewritten importer-last (the join worker, mix.js and secret.js,
+// carries a sha256 prefix of the file it names, rewritten importer-last (secret.js and eth.js,
 // then app.js, then the page that loads app.js) so each token covers bytes already final. Returns the drift it found; writes only
 // when asked, so --verify-only reuses the same walk.
-const SATS_CB_FILES = ['sats/join-worker.js', 'sats/mix.js', 'sats/secret.js', 'sats/eth.js', 'sats/app.js', 'sats/index.html'];
+const SATS_CB_FILES = ['sats/secret.js', 'sats/eth.js', 'sats/app.js', 'sats/index.html'];
 // Weld's stats and keeper pages keep their imports in their inline module, so their tokens are rewritten before those modules' CSP hashes are
 // taken (updatePinnedCsp below). The front page's module is front/main.js, hashed before dapp/index.html (and /tac/ and /spx/) that load it.
 // (TAC's Bitcoin pool, tac/pool.js and what it loads, the sheets, front/sheets.js, and TAC's page, front/tac.js, are hashed before the front page that loads them)
 const WELD_CB_FILES = ['btc-borrow.js', 'btcswap-page.js', 'walletconnect.js', 'evm-pool-sync-worker.js', 'holding-prove-worker.js', 'tac/sats.js', 'tac/claim.js', 'tac/pool.js', 'front/sheets.js', 'front/tac.js', 'front-route.js', 'front/main.js', 'index.html', 'weld/stats/index.html'];
 // dapp/pay/ and dapp/pay/eth/ are built the same way as weld: one page each, every import in its inline module.
-const PAY_CB_FILES = ['private-route.js', 'relay-route.js', 'sign-wait.js', 'pay/index.html', 'pay/eth/index.html'];
+const PAY_CB_FILES = ['private-route.js', 'relay-route.js', 'sign-wait.js', 'pay-with.js', 'pay/index.html', 'pay/eth/index.html'];
 // dapp/tac/ holds TAC's Bitcoin pool, which TAC's page draws: pool.js lazy-imports sats.js and claim.js, so those are hashed first, then pool.js
 // (and the front page, in the weld walk above). /tac/ itself is the front page made for its address (tacPage below).
 const TAC_CB_FILES = ['tac/sats.js', 'tac/claim.js', 'tac/pool.js'];
@@ -357,7 +357,7 @@ function spxPageOf(text) {
   if (text.split(top).length !== 2 || text.split(below).length !== 2 || text.split(end).length !== 2) throw new Error('index.html should have one hero title block, one #how section and one chrome:head:end marker: update spxPageOf in build/build.mjs');
   const part = (name) => readFileSync(join(DAPP_DIR, 'spx', name), 'utf8').trimEnd();
   text = text.replace(top, () => `${part('hero.html')}\n`).replace(below, () => `${part('below.html')}\n\n${below}`)
-    .replace(end, () => `${end}\n<link rel="preload" href="/fonts/orbitron-latin.woff2" as="font" type="font/woff2" crossorigin>\n<link rel="preload" href="/fonts/space-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>\n<link rel="stylesheet" href="/spx/spx.css?cb=${fileToken('spx/spx.css')}">`);
+    .replace(end, () => `${end}\n<link rel="preload" href="/fonts/orbitron-latin.woff2" as="font" type="font/woff2" crossorigin fetchpriority="low">\n<link rel="preload" href="/fonts/space-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin fetchpriority="low">\n<link rel="stylesheet" href="/spx/spx.css?cb=${fileToken('spx/spx.css')}">`);
   const desc = /(<meta (?:name="description"|property="og:description") content=")[^"]*(">)/g;
   if ((text.match(desc) || []).length !== 2) throw new Error('index.html should have one description and one og:description: update spxPageOf in build/build.mjs');
   return text.replace(desc, (m, a, b) => `${a}${SPX_PAGE_DESC}${b}`)

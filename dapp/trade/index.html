@@ -56,7 +56,7 @@
 <link rel="preload" as="fetch" href="https://api.tacit.finance/assets/f0bbe868af10c6c67652a99709bf32048d1aa7194efe3e9a1ef1bde43f94762b/bid-intents?network=mainnet" crossorigin fetchpriority="low">
 <link rel="preload" as="fetch" href="https://api.tacit.finance/farm/program?network=mainnet" crossorigin fetchpriority="low">
 <!-- preload:begin -->
-<link rel="modulepreload" href="/trade/app.js?cb=2f0f32df">
+<link rel="modulepreload" href="/trade/app.js?cb=2fe2660e">
 <link rel="modulepreload" href="/vendor/tacit-deps.min.js" fetchpriority="high">
 <link rel="modulepreload" href="/eth-nodes.js">
 <link rel="modulepreload" href="/wallet-prompts.js">
@@ -71,7 +71,7 @@
 <link rel="modulepreload" href="/trade/book.js?cb=577d1f94">
 <link rel="modulepreload" href="/trade/pools.js?cb=8f983ea2">
 <link rel="modulepreload" href="/zboards.js?cb=e8d21aec">
-<link rel="modulepreload" href="/trade/connect.js?cb=514272b7">
+<link rel="modulepreload" href="/trade/connect.js?cb=c1a728a3">
 <link rel="modulepreload" href="/walletconnect.js?cb=4740866f">
 <link rel="modulepreload" href="/trade/wallet.js?cb=ff74eb58">
 <link rel="modulepreload" href="/trade/sheet.js?cb=d857446c">
@@ -397,6 +397,8 @@ button.ob-row:focus-visible { outline: 2px solid var(--ink); outline-offset: -2p
 .ob-row .p small { display: inline; margin-left: 6px; font-weight: 400; font-size: 11px; color: var(--mute); }
 .ob-row .a, .ob-row .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ob-row .t { color: var(--mute); }
 .ob-row.mine { box-shadow: inset 3px 0 0 var(--mute); } .ob-row.take { box-shadow: inset 3px 0 0 var(--orange); }
+.ob-row.ob-fold { font-style: italic; color: var(--mute); border-top: 1px dashed var(--line, currentColor); }
+.ob-row.ob-fold::before { display: none; }
 .ob-tag { font-style: normal; font-size: 9px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--warn); margin-right: 6px; }
 .ob-spread { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 12px; min-height: 36px; padding: 4px 12px; border-top: 1px solid var(--hair-2); border-bottom: 1px solid var(--hair-2); background: var(--field); font-size: 11px; color: var(--mute); }
 .ob-last { display: inline-flex; align-items: baseline; gap: 6px; } .ob-last b { font-size: 15px; font-weight: 500; color: var(--ink); } .ob-last em { font-style: normal; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; } .ob-last.old b { font-weight: 400; color: var(--mute); }
@@ -651,6 +653,7 @@ header.top .chip:focus-visible { outline: 2px solid var(--orange); outline-offse
 .sh-t.pill a[aria-current="page"] { background: none; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .sh-t .sh-i { transition: none; } }
 .sh p.sh-n { margin-top: 14px; max-width: 52em; font-size: 12.5px; color: var(--faint, var(--mute)); min-height: 1.5em; }
+.sh p.sh-n:empty { display: none; }      /* a view that has no line of its own (DeFi's Swap: the card says it) */
 .sh.sh-l { max-width: 560px; text-align: left; } .sh.sh-l .sh-more { margin-top: 18px; }
 @media (hover: hover) { .sh-t a:hover { color: var(--ink); } }
 @media (max-width: 520px) { .sh { margin-top: 18px; } .sh-t { display: grid; grid-auto-columns: 1fr; } .sh-t a { padding: 6px 6px; font-size: 12px; } }
@@ -782,7 +785,7 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
 @font-face { font-family: 'Instrument Serif Fallback N'; src: local('Noto Serif'), local('NotoSerif'); size-adjust: 70.5%; ascent-override: 140.4%; descent-override: 44%; line-gap-override: 0%; }
 @font-face { font-family: 'Instrument Serif Fallback N'; font-style: italic; src: local('Noto Serif Italic'), local('NotoSerif-Italic'); size-adjust: 76.3%; ascent-override: 129.7%; descent-override: 40.6%; line-gap-override: 0%; }
 </style>
-<script src="/chrome.js?cb=1118f1b1" defer></script>
+<script src="/chrome.js?cb=1c128f47" defer></script>
 <!-- chrome:head:end -->
 </head>
 <body>
@@ -830,6 +833,7 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
             <a href="/prove/"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg>Prove</a>
             <a href="/tasks/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Tasks</a>
             <a href="/praxis/"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15.5" r="4.5"/><path d="M11.2 12.3L20 3.5"/><path d="M17 6.5l2.5 2.5"/><path d="M14.5 9l2 2"/></svg>Praxis</a>
+            <a href="/govern/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 14h14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M8 14V4.5h8V14"/><path d="M10.2 8.7l1.3 1.3 2.4-2.6"/></svg>Govern</a>
             </div>
           </details>
         </nav>
@@ -958,6 +962,6 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
   </nav>
   <!-- chrome:foot:end -->
 </div>
-<script type="module" src="/trade/app.js?cb=2f0f32df"></script>
+<script type="module" src="/trade/app.js?cb=2fe2660e"></script>
 </body>
 </html>

@@ -7,6 +7,8 @@
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex">
 <title>tacit fast</title>
+<link rel="preload" href="/fonts/newsreader-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/schibsted-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
 <meta name="description" content="TAC from Bitcoin to your private balance in minutes, through a liquidity provider.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="tacit">
@@ -24,18 +26,18 @@
 <link rel="preconnect" href="https://tacit-fast-board.onrender.com" crossorigin>
 <!-- preload-roots: /fast/app.js | | /fast/wire.js -->
 <!-- preload:begin -->
-<link rel="modulepreload" href="/fast/app.js?cb=13001df1">
-<link rel="modulepreload" href="/trade/btc-session.js?cb=185e1bbc">
-<link rel="modulepreload" href="/tab-key.js?cb=e90d6a31">
+<link rel="modulepreload" href="/fast/app.js?cb=2aea4aa2">
+<link rel="modulepreload" href="/trade/btc-session.js?cb=b5f81297">
+<link rel="modulepreload" href="/tab-key.js?cb=18dd5b40">
 <link rel="modulepreload" href="/prf-wallet.js">
 <link rel="modulepreload" href="/vendor/tacit-deps.min.js" fetchpriority="high">
 <link rel="modulepreload" href="/tacit-chain-root.js">
-<link rel="modulepreload" href="/trade/key.js?cb=e9a3a06d">
+<link rel="modulepreload" href="/trade/key.js?cb=6d715552">
 <link rel="modulepreload" href="/tacit-wallet-known.js?cb=ec5b5193">
 <link rel="modulepreload" href="/evm-wallet.js?cb=ed67f38d">
 <link rel="modulepreload" href="/identity-message.js">
 <link rel="modulepreload" href="/wallet-prompts.js">
-<link rel="modulepreload" href="/trade/sign-in.js?cb=62608560">
+<link rel="modulepreload" href="/trade/sign-in.js?cb=ce1ac266">
 <link rel="modulepreload" href="/trade/sheet.js?cb=d857446c">
 <link rel="modulepreload" href="/trade/util.js?cb=9c8b4133">
 <link rel="modulepreload" href="/trade/rpc.js">
@@ -48,7 +50,7 @@
 <link rel="modulepreload" href="/sign-wait.js?cb=ab42ced1">
 <link rel="modulepreload" href="/tacit-session.js?cb=4636e436">
 <link rel="modulepreload" href="/trade/poolux.js?cb=59d125e5">
-<link rel="modulepreload" href="/fast/ui.js?cb=db9bcef1">
+<link rel="modulepreload" href="/fast/ui.js?cb=150d4bc2">
 <link rel="modulepreload" href="/fast/fmt.js">
 <link rel="modulepreload" href="/fast/route.js">
 <link rel="modulepreload" href="/fastbridge-price.js">
@@ -261,6 +263,17 @@ button, select, input { font: inherit; color: inherit; letter-spacing: inherit; 
 .fx-steps li.on { border-top-color: var(--ok); color: var(--ink); }
 .fx-steps li.at { border-top-color: var(--orange); color: var(--ink); }
 @media (max-width: 480px) { .fx-steps { font-size: 11px; gap: 4px; } }
+@font-face { font-family: 'Newsreader'; font-weight: 400; font-display: swap; src: url('/fonts/newsreader-400-latin.woff2') format('woff2'); }
+@font-face { font-family: 'Newsreader'; font-weight: 400; font-style: italic; font-display: swap; src: url('/fonts/newsreader-400i-latin.woff2') format('woff2'); }
+/* the providers, folded under one line; a provider with no room is dimmed, its fee kept for what it would be */
+.lp-fold > summary { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 4px 0 10px; cursor: pointer; list-style: none; font: 500 11px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+.lp-fold > summary::-webkit-details-marker { display: none; }
+.lp-fold > summary > span:first-child::before { content: '▸ '; } .lp-fold[open] > summary > span:first-child::before { content: '▾ '; }
+.lp-fold > summary .who { letter-spacing: 0; text-transform: none; }
+.lp-tile.full { opacity: .55; }
+/* the Bridge section's look, as its other tabs (the front page's views) wear it: Newsreader for heads, the grotesk for words; figures keep the mono they name */
+:root { --serif: 'Newsreader', 'Newsreader Fallback', 'Newsreader Fallback T', Georgia, serif; }
+body { font-family: var(--sans, var(--mono)); }
 </style>
 <!-- chrome:head:begin inline -->
 <style>
@@ -390,6 +403,7 @@ header.top .chip:focus-visible { outline: 2px solid var(--orange); outline-offse
 .sh-t.pill a[aria-current="page"] { background: none; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .sh-t .sh-i { transition: none; } }
 .sh p.sh-n { margin-top: 14px; max-width: 52em; font-size: 12.5px; color: var(--faint, var(--mute)); min-height: 1.5em; }
+.sh p.sh-n:empty { display: none; }      /* a view that has no line of its own (DeFi's Swap: the card says it) */
 .sh.sh-l { max-width: 560px; text-align: left; } .sh.sh-l .sh-more { margin-top: 18px; }
 @media (hover: hover) { .sh-t a:hover { color: var(--ink); } }
 @media (max-width: 520px) { .sh { margin-top: 18px; } .sh-t { display: grid; grid-auto-columns: 1fr; } .sh-t a { padding: 6px 6px; font-size: 12px; } }
@@ -521,7 +535,7 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
 @font-face { font-family: 'Instrument Serif Fallback N'; src: local('Noto Serif'), local('NotoSerif'); size-adjust: 70.5%; ascent-override: 140.4%; descent-override: 44%; line-gap-override: 0%; }
 @font-face { font-family: 'Instrument Serif Fallback N'; font-style: italic; src: local('Noto Serif Italic'), local('NotoSerif-Italic'); size-adjust: 76.3%; ascent-override: 129.7%; descent-override: 40.6%; line-gap-override: 0%; }
 </style>
-<script src="/chrome.js?cb=1118f1b1" defer></script>
+<script src="/chrome.js?cb=1c128f47" defer></script>
 <!-- chrome:head:end -->
 </head>
 <body>
@@ -537,7 +551,7 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
 <div class="shell">
 
   <header class="top">
-    <a class="brand" href="/" aria-label="tacit fast"><svg class="tk" aria-hidden="true"><use href="#tk-tac"/></svg><b>tacit</b><i>fast</i></a>
+    <a class="brand" href="/" aria-label="tacit v1"><svg class="tk" aria-hidden="true"><use href="#tk-tac"/></svg><b>tacit</b><i>v1</i></a>
     <div class="top-r">
       <!-- chrome:nav:begin -->
       <nav class="sn" aria-label="Sections">
@@ -566,10 +580,12 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
             <a href="/prove/"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg>Prove</a>
             <a href="/tasks/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Tasks</a>
             <a href="/praxis/"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15.5" r="4.5"/><path d="M11.2 12.3L20 3.5"/><path d="M17 6.5l2.5 2.5"/><path d="M14.5 9l2 2"/></svg>Praxis</a>
+            <a href="/govern/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 14h14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M8 14V4.5h8V14"/><path d="M10.2 8.7l1.3 1.3 2.4-2.6"/></svg>Govern</a>
             </div>
           </details>
         </nav>
       <!-- chrome:nav:end -->
+      <button class="chip" id="wallet" type="button"><span class="dot" id="wallet-dot"></span><span id="wallet-label">Sign in</span></button>
     </div>
   </header>
 
@@ -592,10 +608,10 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
   </main>
 <!-- warm:begin -->
 <template id="warm">
-<link rel="modulepreload" href="/fast/wire.js?cb=30d256dc">
+<link rel="modulepreload" href="/fast/wire.js?cb=b9f766f3">
 <link rel="modulepreload" href="/bitcoin-taproot-wallet.js">
 <link rel="modulepreload" href="/adaptor-btc-tx.js">
-<link rel="modulepreload" href="/fastbridge-btc.js?cb=82196961">
+<link rel="modulepreload" href="/fastbridge-btc.js?cb=2dd2aac7">
 <link rel="modulepreload" href="/btc-pool-zap.js">
 <link rel="modulepreload" href="/confidential-crosslane-guard.js">
 <link rel="modulepreload" href="/fastbridge-evm.js?cb=de77400c">
@@ -643,6 +659,6 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
   </nav>
   <!-- chrome:foot:end -->
 </div>
-<script type="module" src="/fast/app.js?cb=13001df1"></script>
+<script type="module" src="/fast/app.js?cb=2aea4aa2"></script>
 </body>
 </html>

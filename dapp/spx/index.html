@@ -14,14 +14,14 @@
 <link rel="preconnect" href="https://rpc.mevblocker.io" crossorigin>
 <link rel="preconnect" href="https://tacit-evm-pool-keepers.onrender.com" crossorigin>
 <script async src="/front-guard.js?cb=51f5d28b"></script>
-<script src="/front-route.js?cb=464099d6"></script>
+<script src="/front-route.js?cb=7c755d2e"></script>
 <script type="module" src="/px-strip.js?cb=10c6841d" async fetchpriority="high"></script>
-<link rel="preload" href="/swap/card.css?cb=5525b436" as="style">
+<link rel="preload" href="/swap/card.css?cb=5d4d27c7" as="style">
 <link rel="preload" href="/fonts/newsreader-400-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/fonts/newsreader-400i-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/newsreader-400i-latin.woff2" as="font" type="font/woff2" crossorigin fetchpriority="low">
 <link rel="preload" href="/fonts/schibsted-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/ibm-plex-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/fonts/ibm-plex-mono-500-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/ibm-plex-mono-500-latin.woff2" as="font" type="font/woff2" crossorigin fetchpriority="low">
 <title>tacit SPX</title>
 <link rel="canonical" href="https://tacit.finance/spx/">
 <meta name="description" content="SPX6900, privately: shield $SPX into the Tacit DeFi pool, send it, take it out or bridge it to Bitcoin.">
@@ -37,7 +37,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <!-- preload-roots: /front/main.js /storage-fallback.js /vendor/tacit-deps.min.js /prf-wallet.js /tacit-wallet-known.js /tab-key.js /tacit-address.js /bip352.js /evm-wallet.js /walletconnect.js /evm-account.js /evm-tx.js /tac-airdrop.js /evm-trade-venues.js /confidential-payout.js /address-id.js /address-view.js /wallet-balances.js /portfolio.js /trade/farm-read.js /bridge-all.js /lp-zap.js /lockmint-auto.js /auto-claim.js /farm-ops.js /relay-outcome.js /btc-borrow.js /bridge-out.js /bridge/track.js /bridge/runtime.js /bridge-in.js /bridge-tick.js /tacit-session.js /activity.js /pool-hint.js /own-node.js /swap/card.js /rescan-gate.js /pub-address.js | /weld/stats/read.js /trade/lp-campaign.js /tacit-chain-config.js | /confidential-pool-ux.js /confidential-deployments.js -->
 <!-- preload:begin -->
-<link rel="modulepreload" href="/front/main.js?cb=513c79b9">
+<link rel="modulepreload" href="/front/main.js?cb=e02c306e">
 <link rel="modulepreload" href="/storage-fallback.js">
 <link rel="modulepreload" href="/own-node.js?cb=ed1de110">
 <link rel="modulepreload" href="/eth-nodes.js">
@@ -53,7 +53,7 @@
 <link rel="modulepreload" href="/tacit-wallet-known.js?cb=ec5b5193">
 <link rel="modulepreload" href="/rescan-gate.js?cb=69bb32ff">
 <link rel="modulepreload" href="/pub-address.js?cb=cb1da32d">
-<link rel="modulepreload" href="/tab-key.js?cb=e90d6a31">
+<link rel="modulepreload" href="/tab-key.js?cb=18dd5b40">
 <link rel="modulepreload" href="/tacit-address.js">
 <link rel="modulepreload" href="/bip352.js">
 <link rel="modulepreload" href="/evm-wallet.js?cb=ed67f38d">
@@ -90,7 +90,7 @@
 <link rel="modulepreload" href="/bridge-tick.js?cb=8f677598">
 <link rel="modulepreload" href="/tacit-session.js?cb=4636e436">
 <link rel="modulepreload" href="/activity.js?cb=7766c464">
-<link rel="modulepreload" href="/swap/card.js?cb=bd566502">
+<link rel="modulepreload" href="/swap/card.js?cb=1016c463">
 <link rel="modulepreload" href="/trade/wallet.js?cb=ff74eb58">
 <link rel="modulepreload" href="/trade/util.js?cb=9c8b4133">
 <link rel="modulepreload" href="/trade/fmt.js?cb=172824e5">
@@ -399,6 +399,15 @@ main:focus { outline: none; }
    the card's pool line waits for an amount, and its Bitcoin and Ethereum switch is the Swap tab's (Shield's From lists Bitcoin's coins) */
 :root:not([data-page]) #hx .swc:has(#amt:placeholder-shown) #homes:has(> .one) { display: none; }
 :root:not([data-page]) #hx:has([data-hxm="shield"][aria-selected="true"]) .swc:not(.atom):not(.btc) .mode { display: none; }
+/* the DeFi section's Swap: Bitcoin and ETH are swapped under Bridge (its BTC ⇄ ETH swap tab), so the card's chain switch is not shown here */
+html[data-sec="defi/swap"] #hx .swc:not(.atom):not(.btc) .mode { display: none; }
+/* Pay's Claim links tab: making the link is the one thing to do there, so its button is the solid one (TAC's page keeps it quiet, the second way under Send) */
+html[data-sec="payments/links"] #tp-claim-go.btn.ghost { color: var(--card); background: var(--ink); border-color: var(--ink); }
+/* the coin list's Private tab: the pool a coin is in, as a small heading over its coins */
+#hx .pk-sub { margin: 8px 10px 2px; font: 500 10.5px/1.3 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--mute); }
+#hx .pk-sub[hidden] { display: none; }
+/* Stake on a wide window has its card beside what it earns: the Stake TAC button over there would be a second way to the same card */
+@media (min-width: 1000px) { html[data-sec="defi/stake"] .tpg-cta { display: none; } }
 /* The farms, the second row of the table under the card: a pair and its APR a chip, best first, each opening the card's Earn tab on that pool's ETH zap. The row's height is
    kept while empty, so nothing moves when the farms are read. */
 .fms { display: flex; align-items: center; gap: 4px; height: 30px; margin: 0; padding: 1px 0; overflow-x: auto; scrollbar-width: none; opacity: 0; transition: opacity .35s; }
@@ -2267,7 +2276,7 @@ html:not([data-page="spx"]) {
 }
 </style>
 <!-- the hero tile is drawn with the swap card's parts (swap/card.js, which the Swap tab mounts): its styles, after the page's own -->
-<link rel="stylesheet" href="/swap/card.css?cb=5525b436" media="print">
+<link rel="stylesheet" href="/swap/card.css?cb=5d4d27c7" media="print">
 <!-- chrome:head:begin inline -->
 <style>
 /* The header's page links and the footer, as every page that wears them draws them. The markup is made by build/chrome.mjs and stamped
@@ -2396,6 +2405,7 @@ header.top .chip:focus-visible { outline: 2px solid var(--orange); outline-offse
 .sh-t.pill a[aria-current="page"] { background: none; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .sh-t .sh-i { transition: none; } }
 .sh p.sh-n { margin-top: 14px; max-width: 52em; font-size: 12.5px; color: var(--faint, var(--mute)); min-height: 1.5em; }
+.sh p.sh-n:empty { display: none; }      /* a view that has no line of its own (DeFi's Swap: the card says it) */
 .sh.sh-l { max-width: 560px; text-align: left; } .sh.sh-l .sh-more { margin-top: 18px; }
 @media (hover: hover) { .sh-t a:hover { color: var(--ink); } }
 @media (max-width: 520px) { .sh { margin-top: 18px; } .sh-t { display: grid; grid-auto-columns: 1fr; } .sh-t a { padding: 6px 6px; font-size: 12px; } }
@@ -2527,10 +2537,10 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
 @font-face { font-family: 'Instrument Serif Fallback N'; src: local('Noto Serif'), local('NotoSerif'); size-adjust: 70.5%; ascent-override: 140.4%; descent-override: 44%; line-gap-override: 0%; }
 @font-face { font-family: 'Instrument Serif Fallback N'; font-style: italic; src: local('Noto Serif Italic'), local('NotoSerif-Italic'); size-adjust: 76.3%; ascent-override: 129.7%; descent-override: 40.6%; line-gap-override: 0%; }
 </style>
-<script src="/chrome.js?cb=1118f1b1" defer></script>
+<script src="/chrome.js?cb=1c128f47" defer></script>
 <!-- chrome:head:end -->
-<link rel="preload" href="/fonts/orbitron-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/fonts/space-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/orbitron-latin.woff2" as="font" type="font/woff2" crossorigin fetchpriority="low">
+<link rel="preload" href="/fonts/space-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin fetchpriority="low">
 <link rel="stylesheet" href="/spx/spx.css?cb=0873dfbd">
 </head>
 <body>
@@ -2602,6 +2612,7 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
             <a href="/prove/"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg>Prove</a>
             <a href="/tasks/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Tasks</a>
             <a href="/praxis/"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15.5" r="4.5"/><path d="M11.2 12.3L20 3.5"/><path d="M17 6.5l2.5 2.5"/><path d="M14.5 9l2 2"/></svg>Praxis</a>
+            <a href="/govern/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 14h14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M8 14V4.5h8V14"/><path d="M10.2 8.7l1.3 1.3 2.4-2.6"/></svg>Govern</a>
             </div>
           </details>
         </nav>
@@ -2690,7 +2701,7 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
         </div>
         <div class="cpg-row">
           <span class="cpg-a"><svg class="tk" aria-hidden="true"><use href="#tk-tac"/></svg><b>TAC</b><small>as private TAC</small></span>
-          <div class="cpg-go"><a class="cpg-opt" href="/#/chains/bridge" data-br="btc"><b>Standard</b><small data-brx="in">a few hours · Bitcoin fee in sats</small></a><a class="cpg-opt" href="/fast/"><b>Fast</b><small>minutes · a provider’s quoted fee</small></a></div>
+          <div class="cpg-go"><a class="cpg-opt" href="/#/chains/bridge" data-br="btc"><b>Standard</b><small data-brx="in">a few hours · Bitcoin fee in sats</small></a><a class="cpg-opt" href="/fast/"><b>Fast</b><small data-fastx>minutes · a provider’s quoted fee</small></a></div>
         </div>
         <div class="cpg-row">
           <span class="cpg-a"><b>Other tokens</b><small>tETH, cBTC, cUSD, USDT</small></span>
@@ -3107,9 +3118,9 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
       <div class="sheet-head"><h2 id="pass-title">Unlock</h2></div>
       <p class="note" id="pass-reason"></p>
       <label class="lbl" id="pass-label-1" for="pass-input-1">passphrase</label>
-      <div class="amt text"><input type="password" id="pass-input-1"></div>
+      <div class="amt text"><input type="password" id="pass-input-1" autocomplete="new-password"></div>
       <div class="pass-hint" id="pass-hint-1" aria-live="polite"></div>
-      <div id="pass-field-2"><label class="lbl" for="pass-input-2">repeat</label><div class="amt text"><input type="password" id="pass-input-2"></div><div class="pass-hint" id="pass-hint-2" aria-live="polite"></div></div>
+      <div id="pass-field-2"><label class="lbl" for="pass-input-2">repeat</label><div class="amt text"><input type="password" id="pass-input-2" autocomplete="new-password"></div><div class="pass-hint" id="pass-hint-2" aria-live="polite"></div></div>
       <p class="note" id="pass-warn">There is no reset. Forget it and only your key backup gets you back in.</p>
       <div class="row2"><button class="btn ghost" id="pass-cancel" type="button">Cancel</button><button class="btn" id="pass-submit" type="submit">Continue</button></div>
     </form>
@@ -3118,6 +3129,6 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
 
 <div class="toasts" id="toast-container" popover="manual"></div>
 
-<script type="module" src="/front/main.js?cb=513c79b9"></script>
+<script type="module" src="/front/main.js?cb=e02c306e"></script>
 </body>
 </html>

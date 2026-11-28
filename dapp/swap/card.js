@@ -1629,7 +1629,7 @@ function depositSoon(q) {
   clearTimeout(depTimer);
   depTimer = setTimeout(ask, 0);
 }
-const ltLoad = () => (LTP ||= import('/swap/later.js?cb=7ca373ea').then((m) => { LT = m.makeLater({ keyHex: async () => (await pvLoad()).keyHex(), signer: pageSigner, ethCall, venues, ux: getUx, sendPrivate: async (o) => (await pvLoad()).sendPrivate(o), gasPrice, now: () => (S.chainT ? (S.chainT + (now() - S.chainAt)) * 1000 : Date.now()) }); LT.mod = m; return LT; }).catch((e) => { LTP = null; throw e; }));
+const ltLoad = () => (LTP ||= import('/swap/later.js?cb=3810fde5').then((m) => { LT = m.makeLater({ keyHex: async () => (await pvLoad()).keyHex(), signer: pageSigner, ethCall, venues, ux: getUx, sendPrivate: async (o) => (await pvLoad()).sendPrivate(o), gasPrice, now: () => (S.chainT ? (S.chainT + (now() - S.chainAt)) * 1000 : Date.now()) }); LT.mod = m; return LT; }).catch((e) => { LTP = null; throw e; }));
 const laterPay = (k) => isEth(k) || k === lc(R.TAC) || (isListed(k) && !tacitKey(k) && k !== lc(R.WETH));
 const laterPair = (kind, pay = S.pay, get = S.get) => laterPay(pay)
   && (isEth(pay) ? kind === 'agg' || (kind === 'tac' && get === lc(R.TAC)) : (kind === 'agg' && get !== lc(R.WETH)) || kind === 'any' || kind === 'out' || kind === 'tac');
@@ -1748,21 +1748,24 @@ const amountWord = (amt, dec) => (/^\s*\d*[.,]\d+\s*$/.test(String(amt || '')) &
 const eth2 = (wei) => { const n = Number(wei) / 1e18; return tidy(n >= 1 || !(n > 0) ? n.toFixed(2) : n.toFixed(Math.min(18, 1 - Math.floor(Math.log10(n))))); };
 const LATER_TIP = 'Deposit now into a private pool and swap out later, so nothing onchain links your wallet to where the tokens go.';
 function paintLater(q, r, kind) {
-  const el = $('#later'), fits = laterFits(kind) && (!!r || !!q?.busy || (LATER.on && !!q?.lt));
+  // before an amount the switch alone shows, so whether the swap is private is a choice seen up front (and the address it asks for, explained)
+  const pre = laterFits(kind) && !(Number(S.amt) > 0) && !q;
+  const el = $('#later'), fits = laterFits(kind) && (!!r || !!q?.busy || (LATER.on && !!q?.lt) || pre);
   el.hidden = !fits;
+  if (fits && LATER.on && Number(S.amt) > 0) proverSoon();
   if (!fits) return;
   if (LATER.on) readHop();
   const th = tokHop(), viaRow = LATER.on && !isEth(S.pay) && viaShown(th), hopOn = viaToken(), dw = depWays(), gasRow = LATER.on && !isEth(S.pay) && (dw.token || dw.tac);
-  const k = `${LATER.on}:${laterPool() && laterDest().kind !== 'address'}:${viaRow ? `${S.pay}:${hopOpen(th)}` : ''}:${gasRow ? `${S.pay}:${dw.tac}` : ''}`;
+  const k = `${pre}:${LATER.on}:${laterPool() && laterDest().kind !== 'address'}:${viaRow ? `${S.pay}:${hopOpen(th)}` : ''}:${gasRow ? `${S.pay}:${dw.tac}` : ''}`;
   if (el.dataset.k !== k) {
     el.dataset.k = k;
     el.classList.toggle('on', LATER.on);
     el.innerHTML = `<button type="button" class="tgl" id="later-on" role="switch" aria-checked="${LATER.on}" title="${esc(LATER_TIP)}"><svg class="tk sm" aria-hidden="true"><use href="#tk-peth"/></svg><span class="tg-t"><b>Swap privately</b><small>${LATER.on ? 'your wallet and the address are not linked' : 'hides where it goes'}</small></span><span class="pill" aria-hidden="true"></span></button>`
-      + (LATER.on ? (viaRow ? viaHtml(th) : '') + (gasRow ? gasHtml(dw) : '')
+      + (LATER.on && !pre ? (viaRow ? viaHtml(th) : '') + (gasRow ? gasHtml(dw) : '')
         + `<div class="buf" title="Deposit more than you swap, so the deposit and the swap do not match. What is not swapped stays yours, private in the pool."><span>Blur the amount<small> · the extra stays yours</small></span><input type="range" id="later-x" min="5" max="100" step="5" value="${LATER.pct}" aria-label="How much more to deposit than you swap, so the two do not match; the extra stays yours, private"><b id="later-xv"></b></div>`
         + `<ol class="st pre" aria-label="How it goes"><li><i class="mk" aria-hidden="true">1</i><span>Deposit <b id="later-dep"></b></span></li><li><i class="mk" aria-hidden="true">2</i><span>Wait</span></li><li><i class="mk" aria-hidden="true">3</i><span>Swap</span></li>${laterPool() && laterDest().kind !== 'address' ? '<li><i class="mk" aria-hidden="true">4</i><span>Private</span></li>' : ''}</ol><p class="later-note" id="later-note"></p>` : '');
   }
-  if (!LATER.on) return;
+  if (!LATER.on || pre) return;
   if (viaRow) viaPaint(th, hopOn);
   if (gasRow) gasPaint(dw);
   const shape = laterOn(kind) && !isEth(S.pay) ? (hopOn ? 'hop' : 'zap') : false;
@@ -1801,7 +1804,22 @@ function viaPaint(th, hopOn) {
   if (t) { t.textContent = `${sym}${n(th.leaves)}`; t.title = relayed ? `With the deposit’s gas paid in a token the swap goes through the ETH pool. Pay it in ETH to use the ${sym} pool.` : th.fee == null ? `${notes(th.leaves, sym)}. The relay is picking it up.` : notes(th.leaves, sym); t.disabled = th.fee == null || relayed; t.setAttribute('aria-pressed', String(hopOn)); }
   if (e) { e.textContent = `ETH${n(LATER.ethLeaves)}`; e.title = notes(LATER.ethLeaves, 'ETH'); e.setAttribute('aria-pressed', String(!hopOn)); }
 }
-const laterStep = (s) => ({ 'proving on this device': `Proving on this device${LT?.proveMs ? `, about ${Math.max(5, Math.round(LT.proveMs / 1000))} s` : ''}…`, 'confirm in your wallet': 'Confirm the deposit in your wallet…', 'waiting for it to be mined': 'Waiting for it to land…',
+const mbOf = (b) => (b / 1e6).toFixed(b >= 1e7 ? 0 : 1);
+function provingWord() {
+  const st = LT?.proverState?.();
+  if (st?.busy && !st.ready && st.total) return `Getting the prover ready, ${mbOf(st.got)} of ${mbOf(st.total)} MB (the first time only)…`;
+  if (st?.busy && !st.ready) return 'Getting the prover ready (the first time only)…';
+  const was = st?.ms || LT?.proveMs, so = st?.runningMs ? Math.round(st.runningMs / 1000) : 0;
+  return `Proving on this device${so ? `, ${so} s` : ''}${was ? `${so ? ' of' : ','} about ${Math.max(5, Math.round(was / 1000))} s` : ''}…`;
+}
+// an onStep that, while a proof is asked for, says it again every half second (the files arriving, the seconds counting), until the proof is done
+let STEP_T = 0;
+const stepper = (apply) => (s) => {
+  clearInterval(STEP_T); STEP_T = 0;
+  apply(s);
+  if (s === 'proving on this device') STEP_T = setInterval(() => { if (!LT?.proverState?.().busy) { clearInterval(STEP_T); STEP_T = 0; return; } apply(s); }, 500);
+};
+const laterStep = (s) => ({ 'proving on this device': provingWord(), 'confirm in your wallet': 'Confirm the deposit in your wallet…', 'waiting for it to be mined': 'Waiting for it to land…',
   'sending through the relayer': 'The relay is sending it…', 'reading the price again': 'Reading the price again…', 'waiting for the TAC': 'Swapped. Waiting for the TAC to reach this key’s address…',
   'making it private': 'Making it private, from this key’s address…', 'sending it on': 'Private. Sending it on…',
   'sign the permit': 'Sign the permit in your wallet. The signature costs nothing…', 'approve': 'Approve exactly the deposit’s amount in your wallet, once…', 'reset the allowance': 'Your USDT allowance is reset to zero first (USDT asks for this)…' }[s] || `${s.charAt(0).toUpperCase()}${s.slice(1)}…`);
@@ -1835,7 +1853,7 @@ async function laterGo() {
   let moved = false, popped = false;
   const earned = laterPts(q, picked(q));
   try {
-    const lt = await ltLoad(), toName = to && S.toName?.addr === lc(to) ? S.toName.name : null, onStep = (s) => { LATER.depStep = laterStep(s); say(esc(laterStep(s))); paintSteps(); };
+    const lt = await ltLoad(), toName = to && S.toName?.addr === lc(to) ? S.toName.name : null, onStep = stepper((s) => { LATER.depStep = laterStep(s); say(esc(laterStep(s))); paintSteps(); });
     if (payer !== 'eth') await relayStart(lt, { q, to, toName, get, dep, extra, v, tin, pt, payer, slip, onStep });
     else await lt.start({ swapWei: laterSwapWei(q), extraWei: extra, token: S.get, sym: get.sym, dec: get.dec, to, toName, depositWei: dep,
       dest: hop ? { kind: 'address' } : dest, gasWei: hop ? 0n : laterGas(), pay: hop ? { token: S.pay, sym: pt.sym, dec: pt.dec } : pay, hop, onStep });
@@ -2071,9 +2089,9 @@ async function laterSwap(id, via = 'relay') {
       shown = LATER.offers[id] = { ...again, ks: shown.ks, via };
     }
     if (BLEND[id]) p.mixed = BLEND[id].since;
-    const done = await lt.swapOut(p, { shown, slippageBps: slip, via, onStep: (s) => { LATER.step[id] = laterStep(s); say(esc(laterStep(s))); paintSteps(); } });
+    const done = await lt.swapOut(p, { shown, slippageBps: slip, via, onStep: stepper((s) => { LATER.step[id] = laterStep(s); say(esc(laterStep(s))); paintSteps(); }) });
     delete LATER.offers[id];
-    if (done.state === 'shielding') { paintSteps(); await lt.shield(done, { onStep: (s) => say(esc(laterStep(s))) }); }
+    if (done.state === 'shielding') { paintSteps(); await lt.shield(done, { onStep: stepper((s) => say(esc(laterStep(s)))) }); }
     const where = done.into ? `is on its way into your private ${esc(p.sym)} pool: its relay completes it within minutes` : done.dest?.kind === 'tacit' ? `was sent privately to ${esc(done.dest.name || 'the Tacit address')}` : done.dest?.kind === 'me' ? 'is in your private balance' : `went to ${shortAddrH(p.to)}`;
     remember(done.swapTx, `${tidy(amtFmt(BigInt(p.swapWei), p.hop ? p.hop.dec : 18))} ${p.hop ? p.hop.sym : 'ETH'} → ${p.sym}, privately${done.into ? ', into your pool' : done.dest?.kind === 'address' || !done.dest ? `, to ${shortAddr(p.to)}` : ''}`);
     if (p.held) H.moves?.stale?.(p.hop ? lc(p.hop.token) : lc(R.ZERO), 'pay');
@@ -2107,7 +2125,7 @@ async function laterShield(id) {
   try {
     const lt = await ltLoad();
     try { await (await pvLoad()).open(); } catch (e) { if (!e?.unlockCancelled) throw e; return; }
-    const done = await lt.shield(p, { onStep: (s) => say(esc(laterStep(s))) });
+    const done = await lt.shield(p, { onStep: stepper((s) => say(esc(laterStep(s)))) });
     say(`<span class="ok">Private.</span> ${esc(p.sym)} ${done.dest.kind === 'tacit' ? `was sent to ${esc(done.dest.name || 'the Tacit address')}` : 'is in your private balance'}.`, 'ok', true);
   } catch (e) { say(esc(e?.message || String(e)), 'err', true); }
   finally { S.busy = false; paint(); paintSteps(); H.onDone?.(); }
@@ -2295,7 +2313,7 @@ async function exitGo() {
 
 let PVP = null, PV = null;
 const pickWallet = (list) => { const mine = wallet.available().find((w) => w.provider === W.prov)?.info?.uuid; return mine && list.some((x) => x.uuid === mine) ? mine : list[0]?.uuid; };
-const pvLoad = () => (PVP ||= import('/swap/private.js?cb=a0a52215').then((m) => {
+const pvLoad = () => (PVP ||= import('/swap/private.js?cb=cb72165b').then((m) => {
   PV = m.makePrivate({ getUx, pick: pickWallet, ...H.key, now: () => (S.chainT ? (S.chainT + (now() - S.chainAt)) * 1000 : Date.now()), onKey: (why) => { if (why) say(esc(why), 'err', true); else { PV.read().then(paint, () => {}); if (plans().some((x) => x.state === 'waiting')) ltLoad().then(readBlend, () => {}); } paint(); } });
   PV.mod = m;
   return PV;
@@ -2904,7 +2922,7 @@ let lane = null, laneP = null;
 const pageWallet = () => (W.account && W.prov && !W.prov.isWalletConnect ? { uuid: W.uuid, address: W.account } : null);
 async function openLane() {
   try {
-    laneP ||= import('/swap/bitcoin.js?cb=09accada').then((mod) => (lane = mod.makeBitcoinLane({ host: $('#btc'), notify: (m) => live(m), wallet: pageWallet, onBridged: paintNudge, from: moving() && S.pay === lc(R.TAC) ? 'tac' : 'teth' })));
+    laneP ||= import('/swap/bitcoin.js?cb=d1a6e7eb').then((mod) => (lane = mod.makeBitcoinLane({ host: $('#btc'), notify: (m) => live(m), wallet: pageWallet, onBridged: paintNudge, from: moving() && S.pay === lc(R.TAC) ? 'tac' : 'teth' })));
     await laneP;
     if (S.btc) await lane.show();
   } catch (e) { $('#btc').innerHTML = `<p class="q err">Could not load the Bitcoin lane: ${esc(e?.message || e)}</p>`; lane = laneP = null; }
@@ -2944,7 +2962,7 @@ async function openAtomic() {
   try {
     // the same lane as /btc/, with the same two helpers: ETH added from the Ethereum wallet in one press, and "Receive as" (the ETH kept private or sent on).
     // The page's own panels (the Bitcoin send, the ETH send) are on /btc/, so a finished swap's next step opens them there.
-    atomicP ||= Promise.all([import('/swap/atomic.js?cb=4d798d2b'), import('/btc/add-eth.js?cb=d423798a'), import('/btc/payout.js?cb=3b028d52')]).then(([mod, ae, po]) => (atomic = mod.makeAtomicLane({ host: $('#atomic'), notify: (m) => live(m), wallet: pageWallet, provider: () => (W.account && W.prov ? W.prov : null), getUx, onState: () => changed(), dir: ATOM.ask?.dir ,
+    atomicP ||= Promise.all([import('/swap/atomic.js?cb=a7cf378a'), import('/btc/add-eth.js?cb=00efbd39'), import('/btc/payout.js?cb=3b028d52')]).then(([mod, ae, po]) => (atomic = mod.makeAtomicLane({ host: $('#atomic'), notify: (m) => live(m), wallet: pageWallet, provider: () => (W.account && W.prov ? W.prov : null), getUx, onState: () => changed(), dir: ATOM.ask?.dir ,
       shield: ae.makeAddEth({ getUx }), payout: po.makePayout({ getUx }),
       onNext: ({ act }) => { if (act === 'send') location.href = '/btc/?dir=e2b#mybtc'; else if (act === 'withdraw') location.href = '/btc/#myeth'; } })));
     await atomicP;

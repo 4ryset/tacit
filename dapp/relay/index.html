@@ -14,11 +14,11 @@
 <link rel="preconnect" href="https://api.tacit.finance" crossorigin>
 <!-- preload-roots: /relay/app.js -->
 <!-- preload:begin -->
-<link rel="modulepreload" href="/relay/app.js?cb=4308ba00">
-<link rel="modulepreload" href="/relay-route.js?cb=7a415964">
-<link rel="modulepreload" href="/private-route.js?cb=b5c16019">
+<link rel="modulepreload" href="/relay/app.js?cb=ff3c3749">
+<link rel="modulepreload" href="/relay-route.js?cb=99898ecb">
+<link rel="modulepreload" href="/private-route.js?cb=d9ec9e79">
 <link rel="modulepreload" href="/evm-pool-relays.js">
-<link rel="modulepreload" href="/trade/connect.js?cb=514272b7">
+<link rel="modulepreload" href="/trade/connect.js?cb=c1a728a3">
 <link rel="modulepreload" href="/walletconnect.js?cb=4740866f">
 <link rel="modulepreload" href="/eth-nodes.js">
 <link rel="modulepreload" href="/wallet-prompts.js">
@@ -336,6 +336,7 @@ header.top .chip:focus-visible { outline: 2px solid var(--orange); outline-offse
 .sh-t.pill a[aria-current="page"] { background: none; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .sh-t .sh-i { transition: none; } }
 .sh p.sh-n { margin-top: 14px; max-width: 52em; font-size: 12.5px; color: var(--faint, var(--mute)); min-height: 1.5em; }
+.sh p.sh-n:empty { display: none; }      /* a view that has no line of its own (DeFi's Swap: the card says it) */
 .sh.sh-l { max-width: 560px; text-align: left; } .sh.sh-l .sh-more { margin-top: 18px; }
 @media (hover: hover) { .sh-t a:hover { color: var(--ink); } }
 @media (max-width: 520px) { .sh { margin-top: 18px; } .sh-t { display: grid; grid-auto-columns: 1fr; } .sh-t a { padding: 6px 6px; font-size: 12px; } }
@@ -467,7 +468,7 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
 @font-face { font-family: 'Instrument Serif Fallback N'; src: local('Noto Serif'), local('NotoSerif'); size-adjust: 70.5%; ascent-override: 140.4%; descent-override: 44%; line-gap-override: 0%; }
 @font-face { font-family: 'Instrument Serif Fallback N'; font-style: italic; src: local('Noto Serif Italic'), local('NotoSerif-Italic'); size-adjust: 76.3%; ascent-override: 129.7%; descent-override: 40.6%; line-gap-override: 0%; }
 </style>
-<script src="/chrome.js?cb=1118f1b1" defer></script>
+<script src="/chrome.js?cb=1c128f47" defer></script>
 <!-- chrome:head:end -->
 </head>
 <body>
@@ -511,6 +512,7 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
             <a href="/prove/"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg>Prove</a>
             <a href="/tasks/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Tasks</a>
             <a href="/praxis/"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15.5" r="4.5"/><path d="M11.2 12.3L20 3.5"/><path d="M17 6.5l2.5 2.5"/><path d="M14.5 9l2 2"/></svg>Praxis</a>
+            <a href="/govern/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 14h14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M8 14V4.5h8V14"/><path d="M10.2 8.7l1.3 1.3 2.4-2.6"/></svg>Govern</a>
             </div>
           </details>
         </nav>
@@ -594,6 +596,6 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
   </nav>
   <!-- chrome:foot:end -->
 </div>
-<script type="module" src="/relay/app.js?cb=4308ba00"></script>
+<script type="module" src="/relay/app.js?cb=ff3c3749"></script>
 </body>
 </html>

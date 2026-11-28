@@ -1,12 +1,11 @@
 import { declinedWords } from '../wallet-prompts.js';
+import { tabKeyRead, tabKeyWrite, tabKeyClear, tabKeyWatch } from '../tab-key.js';
 
-const TACIT_URL = '/tacit.js?cb=62ba2f62';
-const SECRET_URL = '/sats/secret.js?cb=6a2b3864';
-const MIX_URL = '/sats/mix.js?cb=65890c7a';
-const ETH_URL = '/sats/eth.js?cb=947ee23a';
+const TACIT_URL = '/tacit.js?cb=dd8b0a1f';
+const SECRET_URL = '/sats/secret.js?cb=4a43ebd0';
+const ETH_URL = '/sats/eth.js?cb=c6e35fbf';
 const POOL_STATUS = 'https://tacit-btc-pool-mainnet.onrender.com/btc-pool/status';
 
-const NET_PREF = 'tacit-sats-net-v1';
 const SHARED_NET = 'tacit-network-v1';
 const PREV_NET = 'tacit-sats-prev-net-v1';
 const SESSION = 'tacit-sats-session-v1';
@@ -15,10 +14,10 @@ const SHARED_WALLET_KEYS = [
   'tacit-eth-identity', 'tacit-btc-identity', 'tacit-active-mode-v1', 'tacit-ext-mode-v1', 'tacit-ext-state-v1',
   ...['mainnet', 'signet'].flatMap((n) => [`tacit-eth-identity:${n}`, `tacit-btc-identity:${n}`, `tacit-active-mode-v1:${n}`]),
 ];
-const SP_INDEX_URL = { signet: 'https://tacit-sp-index.onrender.com', mainnet: null };
+const SP_INDEX_URL = { mainnet: null };
 const DUST = 546;
 const POLL_MS = 20_000;
-const KNOWN_ASSETS = { signet: ['17619b4c65ad462481b74a59dbd566730a4376f07fb0e6ff8beca216044466c5'], mainnet: [] };
+const KNOWN_ASSETS = { mainnet: [] };
 const TOKEN_SEND_SATS = 3000;
 const PRF_MAP = 'tacit-prf-v1';
 const KNOWN_URL = '/tacit-wallet-known.js?cb=ec5b5193';
@@ -157,18 +156,17 @@ function counted(m) {
 }
 async function settle() { while (inflight.size) await Promise.allSettled([...inflight]); }
 let keyGen = 0;
+let tabKeyMeta = null;
 const pubNow = () => (T?.wallet.pub ? T.bytesToHex(T.wallet.pub) : null);
 
 function parseHash() {
   const h = new URLSearchParams(location.hash.replace(/^#/, ''));
   const sp = (h.get('sp') || '').toLowerCase();
   const st = (h.get('st') || '').toLowerCase();
-  const net = h.get('net');
   const eth = h.get('eth');
   return {
     sp: /^[0-9a-f]{64}$/.test(sp) ? sp : null,
     st: /^[0-9a-f]{64}$/.test(st) ? st : null,
-    net: net === 'mainnet' || net === 'signet' ? net : null,
     eth: ['1', '8453', '4663'].includes(eth) ? eth : null,
   };
 }
@@ -190,33 +188,13 @@ function releaseSharedNet() {
   store.del(PREV_NET, sessionStorage);
 }
 
-function switchNet(net) {
-  if (T && (working || moving())) { toast('Wait for the step in progress to finish, then switch networks.', true); return; }
-  store.set(NET_PREF, net);
-  if (!T) { renderNet(); probeIndex(); refreshCreateLabel(); paintChip(); loadKnown(); resume(); return; }
-  releaseSharedNet();
-  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
-  location.reload();
-}
-
 function renderNet() {
-  const net = curNet();
-  for (const b of document.querySelectorAll('#net [data-net]')) b.setAttribute('aria-pressed', String(b.dataset.net === net));
-  show('mainnet-note', net === 'mainnet');
-  $('foot-net').textContent = `tacit sats · ${net}`;
+  show('mainnet-note', true);
+  $('foot-net').textContent = 'tacit sats · mainnet';
   renderScan();
   renderSendLabels();
   const ph = $('secret-placeholder');
-  if (ph) show('secret-steps', net !== 'mainnet');
-  if (ph) ph.textContent = net === 'mainnet'
-    ? 'Connect a wallet above to start. Shield, pay and withdraw TAC in the pool; each step is one Bitcoin transaction.'
-    : 'Connect a wallet above to start. Each step is one signet transaction.';
-  show('mix-hint', net !== 'mainnet');
-  const mp = $('mix-placeholder');
-  if (mp) show('mix-steps', net !== 'mainnet');
-  if (mp) mp.textContent = net === 'mainnet'
-    ? 'Mixing was a signet demo, and signet is switched off. It is not available on mainnet.'
-    : 'Connect a wallet above to start. Mix turns your sats into a coin with no history.';
+  if (ph) ph.textContent = 'Connect a wallet above to start. Shield, pay and withdraw TAC in the pool; each step is one Bitcoin transaction.';
 }
 
 const indexState = { net: null, tip: null, ok: false };
@@ -253,7 +231,6 @@ function loadTacit() {
       log('');
       renderNet();
       mountSecret();
-      mountMix();
       mountEth();
       return m;
     }).catch((e) => {
@@ -278,6 +255,68 @@ async function keepShared(fn) {
 
 function saveIdentity(rec) { store.set(IDENTITY(T.NET.name), JSON.stringify(rec)); store.set(SESSION, '1'); }
 function readIdentity() { return store.json(IDENTITY(curNet())); }
+
+// The rest of the modern dapp keeps one unlocked wallet for this browser tab.
+// Join that session on mainnet only: signet derives a different identity and
+// must never replace the mainnet handoff. The record lives in sessionStorage,
+// expires with the shared idle policy, and is cleared by every explicit lock.
+function keepTabKey() {
+  if (T?.NET?.name !== 'mainnet' || !T.wallet?.priv || !T.wallet?.pub) return;
+  const rec = readIdentity() || {};
+  tabKeyWrite({
+    mode: rec.mode || tabKeyMeta?.mode || T.wallet.mode || 'local',
+    priv: T.bytesToHex(T.wallet.priv),
+    pubHex: T.bytesToHex(T.wallet.pub),
+    address: rec.address || rec.ext?.address || rec.btc?.address || tabKeyMeta?.address,
+    label: rec.label || tabKeyMeta?.label,
+    credentialId: rec.credentialId || tabKeyMeta?.credentialId,
+  });
+}
+
+async function restoreTabKey() {
+  if (T?.NET?.name !== 'mainnet') return false;
+  const k = tabKeyRead();
+  if (!k) return false;
+  try {
+    // An Ethereum-derived key remains valid only while the account that
+    // opened it is still selected. A passive read never opens a wallet popup;
+    // if the provider cannot prove the account, fail closed and leave the
+    // handoff for a page that can identify its selected EIP-6963 provider.
+    if (k.mode === 'eth') {
+      const want = String(k.address || '').toLowerCase();
+      const providers = new Set(window.ethereum?.request ? [window.ethereum] : []);
+      const announced = (e) => { if (e.detail?.provider?.request) providers.add(e.detail.provider); };
+      window.addEventListener('eip6963:announceProvider', announced);
+      try {
+        window.dispatchEvent(new Event('eip6963:requestProvider'));
+        await new Promise((r) => setTimeout(r, 120));
+      } finally { window.removeEventListener('eip6963:announceProvider', announced); }
+      const answers = await Promise.all([...providers].map((p) => p.request({ method: 'eth_accounts' }).catch(() => [])));
+      if (!answers.some((accounts) => Array.isArray(accounts) && accounts.some((a) => String(a).toLowerCase() === want))) {
+        tabKeyClear();
+        return false;
+      }
+    }
+    const { secp } = await import('/vendor/tacit-deps.min.js');
+    const priv = T.hexToBytes(k.priv);
+    const pub = secp.getPublicKey(priv, true);
+    T.wallet.priv = priv;
+    T.wallet.pub = pub;
+    if (T.bytesToHex(T.wallet.pub).toLowerCase() !== String(k.pubHex).toLowerCase()) throw new Error('tab wallet changed');
+    tabKeyMeta = k;
+    T.wallet.mode = k.mode === 'passkey' || k.mode === 'eth' || k.mode === 'btc' ? k.mode : null;
+    if (k.mode === 'passkey' && T.prfWallet) T.prfWallet.state = { label: k.label, credentialId: k.credentialId, pubkey: k.pubHex };
+    if (k.mode === 'eth' && k.address) T.ethWallet.state = { address: String(k.address).toLowerCase().replace(/^0x/, ''), pubkey: k.pubHex };
+    keyGen++;
+    try { T.invalidateHoldingsCache?.({ fromPoll: true }); } catch {}
+    return true;
+  } catch {
+    try { T.wallet.priv?.fill?.(0); } catch {}
+    T.wallet.priv = null; T.wallet.pub = null; T.wallet.mode = null;
+    tabKeyClear();
+    return false;
+  }
+}
 
 function blobPub(boundAddr = null) {
   const key = `tacit-wallet-v1:${T.NET.name}${boundAddr ? `:by:${boundAddr.toLowerCase()}` : ''}`;
@@ -331,6 +370,7 @@ function clearSession() {
   const w = T.wallet;
   try { w.priv?.fill?.(0); } catch {}
   w.priv = null; w.pub = null; w.mode = null;
+  tabKeyMeta = null;
   T.extWallet.state = null; T.ethWallet.state = null; T.btcWallet.state = null;
   if (T.prfWallet) T.prfWallet.state = null;
   keyGen++;
@@ -568,6 +608,7 @@ function silentAddress() {
 }
 
 async function connected() {
+  keepTabKey();
   show('connect', false);
   show('connected', true);
   show('send', true);
@@ -580,6 +621,7 @@ async function connected() {
 }
 
 function unlocked() {
+  keepTabKey();
   renderIdentity();
   refreshAssets();
   if (!exitSats.key) refreshSats();
@@ -629,7 +671,6 @@ function stealthAddress() {
 }
 
 let satsTotal = null;
-let faucetPending = null;
 async function refresh() {
   const w = T?.wallet;
   if (!w?.pub) return;
@@ -662,10 +703,7 @@ async function refreshSats() {
     if (silent) txt += ` · ${fmtSats(silent)} in silent payments`;
     if (fromPool) txt += ` · ${fmtSats(fromPool)} from the pool`;
     satsTotal = conf + pend + silent;
-    const arriving = satsTotal === 0 && faucetPending && Date.now() - faucetPending.t < 20 * 60_000;
-    if (satsTotal > 0) faucetPending = null;
-    $('w-bal').textContent = arriving ? `${fmtSats(faucetPending.sats)} arriving…` : txt;
-    show('faucet-hint', T.NET.name === 'signet' && satsTotal === 0 && !fromPool && !arriving);
+    $('w-bal').textContent = txt;
   } catch (e) {
     if (stale()) return;
     $('w-bal').textContent = 'unavailable · try Refresh';
@@ -790,9 +828,9 @@ function signOut() {
   if (scanAbort) scanAbort.abort();
   stopPoll();
   clearSession();
+  tabKeyClear();
   store.del(SESSION);
   satsTotal = null;
-  faucetPending = null;
   hashChecked = null;
   held = [];
   creditState = new Map();
@@ -834,23 +872,6 @@ async function fund() {
   show('fund-row', false);
   log('Funding sent.');
   setTimeout(refreshSats, 3000);
-}
-
-async function faucetSats() {
-  if (!T?.wallet.pub) throw fail('Connect a wallet first.');
-  if (T.NET.name !== 'signet') throw fail('The faucet pays signet sats only.');
-  const { FAUCET_URL } = await import(SECRET_URL);
-  let r;
-  try {
-    r = await fetch(`${FAUCET_URL}/faucet/sats`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address: T.wallet.address() }), signal: AbortSignal.timeout(45_000) });
-  } catch { throw fail('The faucet is unreachable. Try signetfaucet.com.'); }
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok || !j.txid) throw fail(j.error ? `Faucet: ${j.error}` : `Faucet unavailable (HTTP ${r.status}). Try signetfaucet.com.`);
-  track(j.txid, 'Signet sats from the faucet');
-  faucetPending = { txid: j.txid, sats: j.sats || 5000, t: Date.now() };
-  log(`${fmtSats(j.sats || 5000)} on the way. You can use them before they confirm.`);
-  await refresh();
-  for (const ms of [4000, 10000, 20000]) setTimeout(() => { if (faucetPending && T?.wallet.pub) refreshSats(); }, ms);
 }
 
 function activityKey() { return `tacit-sats-activity-v1:${T.NET.name}:${T.bytesToHex(T.wallet.pub)}`; }
@@ -1164,8 +1185,7 @@ function parseCheckInput(s) {
   s = s.trim();
   const m = s.match(/[#&?](sp|st)=([0-9a-fA-F]{64})/) || s.match(/^()([0-9a-fA-F]{64})$/);
   if (!m) throw fail('Paste a payment link or a 64-character txid.');
-  const n = s.match(/[#&?]net=(mainnet|signet)/);
-  if (n && n[1] !== T.NET.name) throw fail(`That link is for ${n[1]}. Switch the network above first.`);
+  if (/[#&?]net=signet/.test(s)) throw fail('That link is for signet, which is switched off.');
   return { txid: m[2].toLowerCase(), kind: m[1] || null };
 }
 
@@ -1280,33 +1300,10 @@ async function mountSecret() {
       ensureKey,
       track,
       errMsg,
-      getSats: faucetSats,
       onWallet(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     });
     emit();
   } catch (e) { log('Secret payment failed to load: ' + errMsg(e), 'error'); }
-}
-
-let mixMounted = false;
-async function mountMix() {
-  if (mixMounted) return;
-  mixMounted = true;
-  const ph = $('mix-placeholder');
-  if (T.NET.name !== 'signet') { renderNet(); return; }
-  let mod;
-  try { mod = await import(MIX_URL); } catch (e) { console.warn('[sats] mix.js', e); ph.textContent = 'Mixing is coming soon.'; return; }
-  ph.remove();
-  try {
-    mod.mount($('mix-steps'), {
-      tacit: T, wallet: T.wallet, network: T.NET.name, log, refresh, ensureKey, track, errMsg, hold,
-      onWallet(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-      secretModule: () => import(SECRET_URL),
-      secretHandle: () => secretHandle,
-      hintEl: $('mix-hint'),
-      openMix: () => selectTab('mix', { focus: true, remember: true }),
-    });
-    emit();
-  } catch (e) { log('Mix failed to load: ' + errMsg(e), 'error'); }
 }
 
 let ethMounted = false;
@@ -1319,7 +1316,7 @@ async function mountEth() {
   ph.remove();
   try {
     await mod.mount($('eth-root'), {
-      wallet: T.wallet, network: T.NET.name, ensureKey, errMsg, switchNet, hold, toast, ethProvider: () => T.ethWallet.provider(),
+      wallet: T.wallet, network: T.NET.name, ensureKey, errMsg, hold, toast, ethProvider: () => T.ethWallet.provider(),
       onWallet(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     });
   } catch (e) { log('Private ETH failed to load: ' + errMsg(e), 'error'); }
@@ -1339,12 +1336,6 @@ async function poolStatus() {
 }
 
 function wire() {
-  for (const a of document.querySelectorAll('#net [data-net]')) {
-    a.onclick = () => {
-      const net = a.dataset.net;
-      if (net !== curNet()) switchNet(net);
-    };
-  }
   $('chip').onclick = toWallet;
   const way = (fn) => () => busy(connectButtons(), () => signIn(fn));
   $('btn-known').onclick = way(continueKnown);
@@ -1360,7 +1351,6 @@ function wire() {
   $('btn-btc').onclick = way(() => linkBtcId());
   $('send-asset').onchange = () => { renderSendLabels(); show('share', false); $('send-out').textContent = ''; };
   $('copy-st').onclick = () => copy($('w-st').dataset.full);
-  $('faucet').onclick = () => busy($('faucet'), faucetSats);
   $('btn-refresh').onclick = () => busy($('btn-refresh'), async () => { spentChecked.clear(); exitStale = true; try { T.invalidateHoldingsCache?.(); } catch {} await refresh(); });
   $('btn-sweep').onclick = () => busy([$('btn-sweep'), $('btn-send')], sweep, $('sweep-out'), { pays: true });
   $('btn-unlock').onclick = () => busy($('btn-unlock'), unlock);
@@ -1382,19 +1372,11 @@ function wire() {
   $('copy-sp').onclick = () => copy($('w-sp').dataset.full);
   $('btn-send').onclick = () => busy([$('btn-send'), $('btn-sweep')], send, $('send-out'), { pays: true });
   $('btn-share-copy').onclick = () => copy($('share-url').textContent);
-  $('btn-mix-hint').onclick = () => selectTab('mix', { focus: true, remember: true });
   $('btn-check').onclick = () => busy([$('btn-check'), $('btn-scan')], () => { const p = parseCheckInput($('check-in').value); return checkPayment(p.txid, p.kind); }, $('scan-out'));
   $('btn-scan').onclick = () => busy([$('btn-scan'), $('btn-check')], scan, $('scan-out'));
   $('btn-scan-stop').onclick = () => { scanAbort?.abort(); $('btn-scan-stop').disabled = true; };
   window.addEventListener('hashchange', () => {
-    const { net } = parseHash();
     const sp = parseHash().sp || parseHash().st;
-    if (net && net !== curNet()) {
-      if (T && (working || moving())) { toast(`That link is for ${net}. Open it again once the step in progress has finished.`, true); return; }
-      store.set(NET_PREF, net);
-      if (T) { releaseSharedNet(); location.reload(); } else { renderNet(); probeIndex(); refreshCreateLabel(); paintChip(); loadKnown(); resume(); }
-      return;
-    }
     hashChecked = null;
     if (sp) selectTab('receive');
     if (sp && !T?.wallet.pub) log('Someone sent you a payment link. Connect your wallet to check it.');
@@ -1431,7 +1413,7 @@ function wireTabs() {
     };
   });
   const h = parseHash();
-  selectTab(h.eth ? 'eth' : h.sp || h.st ? 'receive' : store.get(TAB_PREF) || (netPref() === 'signet' ? 'secret' : 'send'));
+  selectTab(h.eth ? 'eth' : h.sp || h.st ? 'receive' : store.get(TAB_PREF) || 'send');
 }
 
 function refreshCreateLabel() {
@@ -1474,9 +1456,15 @@ function errorHook() {
 
 async function boot() {
   errorHook();
-  const { net, eth } = parseHash();
-  if (net || eth) store.set(NET_PREF, net || 'mainnet');
   wire();
+  tabKeyWatch({
+    busy: () => !!(working || moving() || inflight.size),
+    onIdle: (why) => {
+      if (!T?.wallet?.priv) return;
+      signOut();
+      log(why);
+    },
+  });
   wireTabs();
   renderNet();
   refreshCreateLabel();
@@ -1490,11 +1478,12 @@ async function boot() {
 
 async function resume() {
   const sp = parseHash().sp || parseHash().st;
-  if (!(store.get(SESSION) === '1' && readIdentity()) && !sp) return;
+  if (!(store.get(SESSION) === '1' && readIdentity()) && !tabKeyRead() && !sp) return;
   try {
     await loadTacit();
     if (T.wallet.pub) return;
-    if (restore()) await connected();
+    if (await restoreTabKey()) { unlocked(); await connected(); }
+    else if (restore()) await connected();
     else if (sp) log('Someone sent you a payment link. Connect your wallet to check it.');
   } catch (e) { log('Could not load the wallet: ' + errMsg(e), 'error'); }
 }

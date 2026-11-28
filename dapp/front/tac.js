@@ -574,7 +574,7 @@ function tacWait(k) {
   const a = HELD.pub === k ? HELD.sats?.find((x) => x.ticker === 'TAC') : null;
   return { line: a?.joinLine || TAC_JOIN_DEFAULT, refused: a?.refused || [] };
 }
-const tacRefused = (k) => (k ? tacWait(k).refused : []).map((x) => html`<p class="note"><span class="err">A shield of ${fmt(x.v, 8, 4)} TAC did not join the pool.</span> It confirmed in Bitcoin${x.h ? ` in block ${x.h}` : ''}, and the pool has read that block and holds no note from it. <a href="https://mempool.space/tx/${x.txid}" target="_blank" rel="noopener noreferrer">View the transaction</a> · ask in the <a href="https://discord.gg/VxYx9XSBrM" target="_blank" rel="noopener noreferrer">Tacit Discord</a> with it.</p>`);
+const tacRefused = (k) => (k ? tacWait(k).refused : []).map((x) => html`<p class="note"><span class="err">A shield of ${fmt(x.v, 8, 4)} TAC did not join the pool.</span> ${x.why ? `${x.why} It confirmed in Bitcoin${x.h ? ` in block ${x.h}` : ''}.` : `It confirmed in Bitcoin${x.h ? ` in block ${x.h}` : ''}, and the pool has read that block and holds no note from it.`} <a href="https://mempool.space/tx/${x.txid}" target="_blank" rel="noopener noreferrer">View the transaction</a> · ask in the <a href="https://discord.gg/VxYx9XSBrM" target="_blank" rel="noopener noreferrer">Tacit Discord</a> with it.</p>`);
 const TAC_MOVE_PAY = 'Takes it out of the Pay pool to your wallet, then shields it to the Tacit chain.';
 const TAC_MOVE_BTC = 'Takes all of it out of the pool to your Bitcoin address, then opens the bridge to Ethereum. From there it moves to the Tacit chain.';
 function tacPlaces(k, who) {
@@ -694,7 +694,7 @@ document.addEventListener('click', (e) => {
   tacMoveGo(b.dataset.tacMove, b);
 });
 function tacPool() {
-  return (ctx.TPOOL.p ||= import('/tac/pool.js?cb=87c0cf3b').then((m) => {
+  return (ctx.TPOOL.p ||= import('/tac/pool.js?cb=4edeb27a').then((m) => {
     const api = m.makeTacPool({
       key: () => (S.key ? { pubHex: S.key.pubHex } : null),
       priv: () => walletPriv(),
@@ -1924,7 +1924,7 @@ function tpgWhyRead(force = false) {
   if (!chainOn() || (!force && (TPGW.p || Date.now() - TPGW.at < 60e3))) return TPGW.p || Promise.resolve();
   TPGW.at = Date.now();
   return (TPGW.p = Promise.all([
-    Promise.all([import('/tacit-chain-config.js?cb=74171404'), import('/chain/ui.js?cb=68464685'), import('/tacit-chain-wallet.js')])
+    Promise.all([import('/tacit-chain-config.js?cb=74171404'), import('/chain/ui.js?cb=87afc10c'), import('/tacit-chain-wallet.js')])
       .then(([cf, ui, w]) => { TPGW.ui = ui; TPGW.w = w; return tpgStatus(cf.tacitChain()); }).then((s) => { TPGW.cs = s; }, () => {}),
   ]).finally(() => { TPGW.p = null; tpgActionsSoft(); rerender('tac'); }));
 }
@@ -1935,8 +1935,8 @@ async function tpgStatus(cfg) {
     try {
       const r = await fetch(cfg.leader + '/fee', { signal: AbortSignal.timeout(10e3) });
       if (!r.ok) return null;
-      const f = await r.json(), cap = n(f?.shieldCap);
-      return { fee: n(f?.fee), shieldCap: cap > 0n ? cap : null, sweepFee: n(f?.sweepFee) };
+      const f = await r.json();
+      return { fee: n(f?.fee), shieldCap: null, sweepFee: n(f?.sweepFee) };
     } catch { return null; }
   })();
   let v = await multicall(sels.map((x) => ({ to: cfg.blocks, data: x }))).catch(() => null);
@@ -2008,7 +2008,7 @@ function tpgNets(el) {
     ${chainOn() ? html`<h3 class="tpg-h">Tacit chain</h3>
     <div class="tpg-strip">${cell(cs ? n(cs.height) : '…', 'Blocks')}${cell(cs && ui ? (cs.height > 0 && cs.lastLanded > 0 ? ui.ago(Date.now() / 1000 - cs.lastLanded) : 'none yet') : '…', 'Last block')}
       ${cell(cs ? tpgPx(cs.pool, cs.shares) : '…', 'Share price')}${cell(cs && ui ? ui.fmtTac(cs.pool, 2) : '…', 'Pool, TAC')}
-      ${cell(L ? (L.fee > 0n ? ui.fmtTac(L.fee) : 'none') : cs ? '—' : '…', 'Leader fee, TAC')}${cell(L ? (L.shieldCap != null ? ui.fmtTac(L.shieldCap, 0) : 'none') : cs ? '—' : '…', 'Shield cap, TAC')}</div>` : ''}`);
+      ${cell(L ? (L.fee > 0n ? ui.fmtTac(L.fee) : 'none') : cs ? '—' : '…', 'Leader fee, TAC')}</div>` : ''}`);
 }
 $('#tpg-how').addEventListener('toggle', () => { if ($('#tpg-how').open) { TPGN.at = 0; tpgNets($('#tpg-nets')); } });
 function tacShield(el, status, acctBal, walletBal) {

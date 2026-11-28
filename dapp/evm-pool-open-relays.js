@@ -12,7 +12,7 @@ export const RELAY_REGISTRY = '0x00000000000299F48Fb844626ab96c6A20059a01';
 export const MAX_RELAYS_ASKED = 5;      // the relays a spend asks for a quote, the page's own among them
 export const MAX_PAGES = 6;             // calls to `list` for one chain (each looks at up to 500 places and returns up to 100 entries)
 export const MAX_ENTRIES = 300;         // entries kept from the list before the draw
-export const GRACE_MS = 1_500;          // once one relay has quoted, the others have this long more
+export const GRACE_MS = 4_000;          // once one relay has quoted, the others have this long more
 
 const SEL_LIST = '0xd4d25113';          // list(uint64,uint256,uint256) -- checked against the contract's ABI in the tests
 const word = (n) => BigInt(n).toString(16).padStart(64, '0');
@@ -70,12 +70,23 @@ export function drawRelays(entries, n, random = Math.random) {
 // The relays a page lists for a chain next to its own: `{ url, relayer }` for each, ready for a wallet's `keepers`. Entries a wallet would not use (not an
 // https URL ending `/evm-pool/keeper`, not a public name, a repeat) are left out before the draw, so they take no place in it. `own`: the URL of the relay
 // the page ships with, which is never listed twice. `pinned`: false on a page that is not on a real origin (a test, a local page). Never throws.
-export async function openRelays({ call, chainId, own = null, pinned = true, registry = RELAY_REGISTRY, max = MAX_RELAYS_ASKED, random = Math.random }) {
+// The person's choice and the curated lists: `extra` ({ url, relayer }: relays the person added, and those the page's own registry names) are candidates as
+// much as the open registry's; `avoid` (URLs) are never asked; `prefer` (URLs) are asked first, before the draw fills the rest; `openOff` leaves the open
+// registry unread (its curator's switch), so only `extra` is drawn from.
+const norm = (u) => String(u || '').replace(/\/+$/, '').toLowerCase();
+export async function openRelays({ call, chainId, own = null, pinned = true, registry = RELAY_REGISTRY, max = MAX_RELAYS_ASKED, random = Math.random, extra = [], prefer = [], avoid = [], openOff = false }) {
   let entries = [];
-  try { entries = await readRegistry({ call, chainId, registry }); } catch { entries = []; }
-  const mine = own ? own.replace(/\/+$/, '').toLowerCase() : null;
-  const usable = relaysOf({ keepers: entries, pinned }).filter((e) => e.url.toLowerCase() !== mine);
-  return drawRelays(usable, Math.max(0, max - (own ? 1 : 0)), random).map((e) => ({ url: e.url, relayer: e.relayer }));
+  if (!openOff) { try { entries = await readRegistry({ call, chainId, registry }); } catch { entries = []; } }
+  const mine = own ? norm(own) : null, no = new Set((avoid || []).map(norm)), yes = new Set((prefer || []).map(norm));
+  const seen = new Set(), usable = [];
+  for (const e of relaysOf({ keepers: [...(extra || []), ...entries], pinned })) {
+    const k = norm(e.url);
+    if (k === mine || no.has(k) || seen.has(k)) continue;
+    seen.add(k); usable.push(e);
+  }
+  const room = Math.max(0, max - (own ? 1 : 0)), first = usable.filter((e) => yes.has(norm(e.url))).slice(0, room);
+  const rest = drawRelays(usable.filter((e) => !first.includes(e)), room - first.length, random);
+  return [...first, ...rest].map((e) => ({ url: e.url, relayer: e.relayer }));
 }
 
 // A chain's registry entry can point at a multi-keeper. Project only its root native route (or one already projected) to the requested pool; a bare,

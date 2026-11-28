@@ -1,13 +1,13 @@
 // ETH panel of the Secret Sats page: the EVM pool (docs/EVM-POOL.md) on Ethereum, Base and Robinhood Chain, under the
 // same Tacit key as the sats side. mount(el, ctx) renders into el.
-//   ctx = { wallet, network, ensureKey, errMsg, onWallet, switchNet, hold, toast, ethProvider }   ethProvider(): the Ethereum wallet connected on the page, if any
+//   ctx = { wallet, network, ensureKey, errMsg, onWallet, hold, toast, ethProvider }   ethProvider(): the Ethereum wallet connected on the page, if any
 // Proofs run in a worker on this device and a relay submits them, so no gas and no funded address are needed.
 // The proving key is the ceremony's: /evm-pool/pin.json names it and its files by SHA-256.
 // Link: /sats#eth=<chain id>[&do=send|withdraw] opens this panel on that chain, at that form.
 
 import { makeEvmPoolZk } from '/evm-pool-zk.js';
 import { ETH_NODES, BASE_NODES, ROBINHOOD_NODES } from '/eth-nodes.js';
-import { evmPoolKeys, makeEvmPoolWallet, jsonRpc } from '/evm-pool-wallet.js?cb=a6687b98';
+import { evmPoolKeys, makeEvmPoolWallet, jsonRpc } from '/evm-pool-wallet.js?cb=2659d634';
 import { vkHash } from '/evm-pool-zk-prover.js?cb=00ff69c2';
 import { poolRecipient } from '/pool-recipient.js';
 import { L2_BRIDGES } from '/evm-pool-gateway.js';
@@ -78,15 +78,30 @@ const pin = () => (pinP ||= fetch(ARTIFACTS + 'pin.json', { cache: 'no-store' })
   .then((r) => { if (r.status === 404) return null; if (!r.ok) throw new Error(`pin.json: HTTP ${r.status}`); return r.json(); })
   .catch((e) => { pinP = null; throw e; }));
 
+// The circuit and key have gzip copies beside them (a third smaller): fetched first, opened here, and held to the same pinned hash as the plain file,
+// which is fetched instead when the copy is missing, cannot be opened, or does not match.
+const gzOf = (name) => /\.(wasm|zkey)$/.test(name) && typeof DecompressionStream === 'function';
+const gunzip = async (z) => (z[0] === 0x1f && z[1] === 0x8b ? new Uint8Array(await new Response(new Blob([z]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()) : z);
 async function artifact(name, sha, onProgress) {
   const url = ARTIFACTS + name;
-  const key = `${url}?sha256=${sha}`;
+  const key = `${url}?sha256=${sha}`, want = String(sha).replace(/^0x/, '').toLowerCase();
   let cache = null;
   try { cache = await caches.open(CACHE_NAME); } catch {}
   const hit = cache ? await cache.match(key).catch(() => null) : null;
-  let bytes;
+  let bytes = null;
   if (hit) bytes = new Uint8Array(await hit.arrayBuffer());
-  else {
+  else if (gzOf(name)) { try { const x = await gunzip(await download(url + '.gz', name, onProgress)); if (hexOf(await crypto.subtle.digest('SHA-256', x)) === want) bytes = x; } catch {} }
+  if (!bytes) bytes = await download(url, name, onProgress);
+  if (hexOf(await crypto.subtle.digest('SHA-256', bytes)) !== want) {
+    if (hit) await cache.delete(key).catch(() => {});
+    throw new Error(`${name} does not match the ceremony's pinned hash`);
+  }
+  if (!hit && cache) await cache.put(key, new Response(bytes)).catch(() => {});
+  return bytes;
+}
+async function download(url, name, onProgress) {
+  let bytes;
+  {
     const r = await fetch(url);
     if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
     const total = Number(r.headers.get('content-length')) || 0;
@@ -103,11 +118,6 @@ async function artifact(name, sha, onProgress) {
     let o = 0;
     for (const c of parts) { bytes.set(c, o); o += c.length; }
   }
-  if (hexOf(await crypto.subtle.digest('SHA-256', bytes)) !== String(sha).replace(/^0x/, '').toLowerCase()) {
-    if (hit) await cache.delete(key).catch(() => {});
-    throw new Error(`${name} does not match the ceremony's pinned hash`);
-  }
-  if (!hit && cache) await cache.put(key, new Response(bytes)).catch(() => {});
   return bytes;
 }
 
@@ -197,13 +207,6 @@ export async function mount(root, ctx) {
     body.replaceChildren(
       el('p', { class: 'note' }, `Could not reach ${chain.name} just now (${errText(e)}).`),
       el('div', { class: 'row' }, el('button', { class: 'btn quiet sm', type: 'button', onclick: () => render() }, 'Try again')),
-    );
-  }
-
-  function wrongNet() {
-    body.replaceChildren(
-      el('p', { class: 'note' }, 'Private ETH runs on mainnets and uses this page’s mainnet key. Switch the page to mainnet to use it.'),
-      el('div', { class: 'row' }, el('button', { class: 'btn', type: 'button', onclick: () => ctx.switchNet('mainnet') }, 'Switch to mainnet')),
     );
   }
 
@@ -412,7 +415,6 @@ export async function mount(root, ctx) {
     renderSeg();
     clearInterval(timer); timer = null;
     sync.hidden = true;
-    if (ctx.network !== 'mainnet' && !O.chains) return wrongNet();
     if (!ctx.wallet?.pub) { W = null; owner = null; return signedOut(); }
     body.replaceChildren(el('p', { class: 'note' }, `Checking ${chain.name}…`));
     let open;

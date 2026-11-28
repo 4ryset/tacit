@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- One page, one inline module. The module's sha256 is pinned in script-src (build/build.mjs recomputes it and
      the ?cb= tokens on every build), so nothing else can run on this origin from here. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Nz9tJFxak4JK7E+vPm5p39AmZ/rTyuiXsZEqUiUHFGk=' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' https://ipfs.filebase.io https://trustless-gateway.link https://ipfs.orbitor.dev https://gateway.pinata.cloud wss://relay.walletconnect.org https://verify.walletconnect.org https://verify.walletconnect.com https://api.tacit.finance https://tacit-api.onrender.com https://ethereum-rpc.publicnode.com https://eth.drpc.org https://1rpc.io https://mainnet.gateway.tenderly.co https://cloudflare-eth.com https://rpc.flashbots.net https://tacit-btc-pool-mainnet.onrender.com https://tacit-btc-pool-relay-mainnet.onrender.com https://mempool.space https://*.mempool.space https://blockstream.info https://mempool.emzy.de https://mempool.bitaroo.net https://mempool.ninja https://btcscan.org https://rpc.mevblocker.io https://mainnet.rpc.buidlguidl.com https://tacit-node-gw.onrender.com https://eth-mainnet.nodereal.io https://1.rpc.thirdweb.com https://eth-mainnet.public.blastapi.io https://ethereum-json-rpc.stakely.io; frame-src 'self' https://verify.walletconnect.org https://verify.walletconnect.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LJA/glh34JQ6WuAcsBiGWQd9HvWrXspBqvOassRukOE=' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' https://ipfs.filebase.io https://trustless-gateway.link https://ipfs.orbitor.dev https://gateway.pinata.cloud wss://relay.walletconnect.org https://verify.walletconnect.org https://verify.walletconnect.com https://api.tacit.finance https://tacit-api.onrender.com https://ethereum-rpc.publicnode.com https://eth.drpc.org https://1rpc.io https://mainnet.gateway.tenderly.co https://cloudflare-eth.com https://rpc.flashbots.net https://tacit-btc-pool-mainnet.onrender.com https://tacit-btc-pool-relay-mainnet.onrender.com https://mempool.space https://*.mempool.space https://blockstream.info https://mempool.emzy.de https://mempool.bitaroo.net https://mempool.ninja https://btcscan.org https://rpc.mevblocker.io https://mainnet.rpc.buidlguidl.com https://tacit-node-gw.onrender.com https://eth-mainnet.nodereal.io https://1.rpc.thirdweb.com https://eth-mainnet.public.blastapi.io https://ethereum-json-rpc.stakely.io; frame-src 'self' https://verify.walletconnect.org https://verify.walletconnect.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="color-scheme" content="light dark">
 <title>tacit pay</title>
 <meta name="description" content="Pay BTC, TAC and ETH privately from one key and one tacit1 address. Every payment is made on your device.">
@@ -610,6 +610,7 @@ header.top .chip:focus-visible { outline: 2px solid var(--orange); outline-offse
 .sh-t.pill a[aria-current="page"] { background: none; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .sh-t .sh-i { transition: none; } }
 .sh p.sh-n { margin-top: 14px; max-width: 52em; font-size: 12.5px; color: var(--faint, var(--mute)); min-height: 1.5em; }
+.sh p.sh-n:empty { display: none; }      /* a view that has no line of its own (DeFi's Swap: the card says it) */
 .sh.sh-l { max-width: 560px; text-align: left; } .sh.sh-l .sh-more { margin-top: 18px; }
 @media (hover: hover) { .sh-t a:hover { color: var(--ink); } }
 @media (max-width: 520px) { .sh { margin-top: 18px; } .sh-t { display: grid; grid-auto-columns: 1fr; } .sh-t a { padding: 6px 6px; font-size: 12px; } }
@@ -741,7 +742,7 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
 @font-face { font-family: 'Instrument Serif Fallback N'; src: local('Noto Serif'), local('NotoSerif'); size-adjust: 70.5%; ascent-override: 140.4%; descent-override: 44%; line-gap-override: 0%; }
 @font-face { font-family: 'Instrument Serif Fallback N'; font-style: italic; src: local('Noto Serif Italic'), local('NotoSerif-Italic'); size-adjust: 76.3%; ascent-override: 129.7%; descent-override: 40.6%; line-gap-override: 0%; }
 </style>
-<script src="/chrome.js?cb=1118f1b1" defer></script>
+<script src="/chrome.js?cb=1c128f47" defer></script>
 <!-- chrome:head:end -->
 </head>
 <body>
@@ -790,6 +791,7 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
             <a href="/prove/"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg>Prove</a>
             <a href="/tasks/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Tasks</a>
             <a href="/praxis/"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15.5" r="4.5"/><path d="M11.2 12.3L20 3.5"/><path d="M17 6.5l2.5 2.5"/><path d="M14.5 9l2 2"/></svg>Praxis</a>
+            <a href="/govern/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 14h14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M8 14V4.5h8V14"/><path d="M10.2 8.7l1.3 1.3 2.4-2.6"/></svg>Govern</a>
             </div>
           </details>
         </nav>
@@ -895,7 +897,7 @@ footer.sf nav a span { position: absolute; width: 1px; height: 1px; overflow: hi
 <script type="module">
 import { addrView } from '/address-view.js?cb=58dd4914';
 import { waitLine, cancellable } from '/sign-wait.js?cb=ab42ced1';
-import { tabKeyRead, tabKeyWrite, tabKeyClear, tabKeyWatch } from '/tab-key.js?cb=e90d6a31';
+import { tabKeyRead, tabKeyWrite, tabKeyClear, tabKeyWatch } from '/tab-key.js?cb=18dd5b40';
 const forwardOld = (h) => {
   if (/^#(btc|tac)([&/]|$)/.test(h)) return false;
   const eth = /^#eth(?:\/(.*))?$/.exec(h);
@@ -1124,7 +1126,7 @@ function otherWallet() { return knownWallets(KNOWN_IDS).other; }
 const viaText = (k) => ({ eth: `Ethereum ${short(k.address || '')}`, btc: `Bitcoin ${short(k.address || '', 6)}`, ext: `a key funded by ${short(k.address || '', 6)}`,
   passkey: `passkey “${k.label || 'Tacit'}”`, local: 'the key saved in this browser', key: 'a pasted key' })[k.mode] || 'your wallet';
 
-const TACIT_URL = '/tacit.js?cb=62ba2f62';
+const TACIT_URL = '/tacit.js?cb=dd8b0a1f';
 const SHARED_NET = 'tacit-network-v1', PREV_NET = 'tacit-pay-prev-net-v1';
 const SHARED_WALLET_KEYS = ['tacit-eth-identity', 'tacit-btc-identity', 'tacit-active-mode-v1', 'tacit-ext-mode-v1', 'tacit-ext-state-v1',
   ...['mainnet', 'signet'].flatMap((n) => [`tacit-eth-identity:${n}`, `tacit-btc-identity:${n}`, `tacit-active-mode-v1:${n}`])];
@@ -1140,7 +1142,7 @@ const loadTacit = lazy(async () => {
   try { const cur = localStorage.getItem(SHARED_NET); if (sessionStorage.getItem(PREV_NET) === null && cur !== 'mainnet') sessionStorage.setItem(PREV_NET, cur ?? ''); localStorage.setItem(SHARED_NET, 'mainnet'); } catch {}
   globalThis.__TACIT_NO_INIT__ = true;
   globalThis.__TACIT_NO_STEALTH_AUTOSCAN__ = true;      // the TAC refresh looks through TAC's own transfers for payments to the key (lookForMe)
-  (await import('/pass-dialog.js?cb=033f3fbd')).mountPassDialog();
+  (await import('/pass-dialog.js?cb=3361e93e')).mountPassDialog();
   watchDialog($('#pass-dialog'));
   T = await import(TACIT_URL);
   return T;
@@ -1325,7 +1327,7 @@ function signIn(id, first = 'eth') {
   const opt = (k, title, sub, cls = '') => html`<button class="opt ${cls}" type="button" data-in="${k}"><span class="opt-t">${title}</span><span class="opt-m">${sub}</span></button>`;
   const errP = html`<p class="opts-err" id="${id}-err" role="alert" hidden></p>`;
   const links = html`<p class="more">${saved ? html`<button class="link" type="button" data-in="local">Saved in this browser</button>` : ''}${evm.canPair() && !openerOn(known) && !openerOn(other) ? html`<button class="link" type="button" data-in="wc">WalletConnect</button>` : ''}<button class="link" type="button" data-in="paste">Paste a key</button>${pk && known ? html`<button class="link" type="button" data-in="new">New passkey wallet</button>` : ''}</p>
-    <div class="amt text" id="${id}-paste" hidden><input id="${id}-hex" type="password" placeholder="64-character Tacit key" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Tacit key"><button class="link" type="button" data-in="key">Open</button></div>`;
+    <div class="amt text" id="${id}-paste" hidden><input id="${id}-hex" type="password" placeholder="64-character Tacit key" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Tacit key"><button class="link" type="button" data-in="key">Open</button></div>`;
   if (known || other) {
     // A returning visitor: each Tacit wallet this browser opened, by its address and what opens it (they are different keys, each with its own balances), then the other ways in, smaller
     const mine = (k, w, main) => {
@@ -2099,7 +2101,7 @@ async function hintsLook(t, pub, r) {
   hintsKeep(pub, r);
 }
 const hintsKeep = (pub, r) => { if (S.key?.pubHex === pub) writeJson(r.k, { after: r.after, retry: r.keep.filter((x) => !x.done) }); };
-const getSecret = lazy(() => import('/sats/secret.js?cb=6a2b3864'));
+const getSecret = lazy(() => import('/sats/secret.js?cb=4a43ebd0'));
 function loadTac(force = false) {
   if (!S.key) return Promise.resolve();
   if (TAC.loading) return force ? (TAC.next ||= TAC.loading.finally(() => { TAC.next = null; }).then(() => loadTac(true))) : TAC.loading;

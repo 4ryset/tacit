@@ -1,5 +1,5 @@
 
-const SECRET_URL = '/sats/secret.js?cb=6a2b3864';
+const SECRET_URL = '/sats/secret.js?cb=4a43ebd0';
 const SATS_URL = '/tac/sats.js?cb=cfed8c5c';
 const CLAIM_URL = '/tac/claim.js?cb=3191f575';
 const WORKER = 'https://api.tacit.finance';
@@ -307,7 +307,7 @@ export function makeTacPool(ctx) {
       const p = document.createElement('p'), e = document.createElement('span'), a = document.createElement('a');
       e.className = 'err'; e.textContent = `A shield of ${fmt(x.v)} TAC did not join the pool.`;
       a.href = 'https://discord.gg/VxYx9XSBrM'; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = 'Tacit Discord';
-      p.append(e, ` It confirmed in Bitcoin${x.h ? ` in block ${x.h}` : ''}, and the pool has read that block and holds no note from it. Transaction `, txLink(x.txid), ' · ask in the ', a, ' with it.');
+      p.append(e, x.why ? ` ${x.why} It confirmed in Bitcoin${x.h ? ` in block ${x.h}` : ''}. Transaction ` : ` It confirmed in Bitcoin${x.h ? ` in block ${x.h}` : ''}, and the pool has read that block and holds no note from it. Transaction `, txLink(x.txid), ' · ask in the ', a, ' with it.');
       return [p];
     }));
   }
@@ -771,7 +771,7 @@ export function makeTacPool(ctx) {
       <p class="note">Anyone with the link can take it. Add a PIN if you share it in the open.</p>
       ${amtRow('tp-claim-amt', 'Amount', 'tp-claim-max')}
       <div class="lbl"><label for="tp-claim-pin">PIN of 6 or more digits, shared separately</label></div>
-      <div class="amt text"><input id="tp-claim-pin" autocomplete="off" data-lpignore="true" data-1p-ignore data-bwignore="true" data-form-type="other" inputmode="numeric" placeholder="none"></div>
+      <div class="amt text"><input id="tp-claim-pin" autocomplete="off" data-lpignore="true" data-1p-ignore data-bwignore="true" data-form-type="other" inputmode="numeric" placeholder="optional"></div>
       <button class="btn ghost" type="button" id="tp-claim-go">Create a claim link</button>
       <div class="status" id="tp-st-claim-make" role="status"></div>
       <div id="tp-links" hidden>

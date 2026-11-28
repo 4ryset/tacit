@@ -18,7 +18,7 @@ import { bytesToHex, concatBytes } from '@noble/hashes/utils';
 import { createMemDriver } from '../server/driver-mem.mjs';
 import { createCacheStorage } from '../server/cache-mem.mjs';
 import { TAC as TAC_TOKEN } from '../dapp/trade/farm-read.js';
-import { voteMessage } from '../dapp/govern/message.js';
+import { voteMessage, delegateMessage } from '../dapp/govern/message.js';
 
 const { chromium } = createRequire(import.meta.url)(process.env.PLAYWRIGHT || 'playwright-core');
 const DAPP = new URL('../dapp/', import.meta.url).pathname;
@@ -50,12 +50,20 @@ const API = `http://127.0.0.1:${api.address().port}`;
 
 const TAC = 10n ** 18n, HEAD = 0x123456, TIP = 925000;
 const balances = new Map();
+// the .wei name service (WNS) answers resolveId(node) for the names this test knows: node -> address
+const WNS_ADDR = '0x0000000000696760e15f265e828db644a0c242eb';
+const nodeOf = (name) => { let node = new Uint8Array(32); for (const l of name.split('.').reverse()) { node = keccak_256(concatBytes(node, keccak_256(new TextEncoder().encode(l)))); } return bytesToHex(node); };
+const weiNames = new Map();
 const ethAnswer = (body) => {
   const one = (q) => {
     if (q.method === 'eth_blockNumber') return { jsonrpc: '2.0', id: q.id, result: '0x' + HEAD.toString(16) };
     if (q.method === 'eth_chainId') return { jsonrpc: '2.0', id: q.id, result: '0x1' };
     if (q.method !== 'eth_call') return { jsonrpc: '2.0', id: q.id, error: { code: -32601, message: 'not here' } };
     const { to, data } = q.params[0];
+    if (to.toLowerCase() === WNS_ADDR && data.toLowerCase().startsWith('0x4f896d4f')) {
+      const a = weiNames.get(data.slice(10).toLowerCase());
+      return { jsonrpc: '2.0', id: q.id, result: '0x' + (a ? a.slice(2) : '').padStart(64, '0') };
+    }
     const v = to.toLowerCase() === TAC_TOKEN.toLowerCase() && data.startsWith('0x70a08231') ? balances.get('0x' + data.slice(-40)) ?? 0n : 0n;
     return { jsonrpc: '2.0', id: q.id, result: '0x' + v.toString(16).padStart(64, '0') };
   };
@@ -90,6 +98,7 @@ const personalSign = async (priv, text) => {
 };
 const rich = holderOf('gov-page-250tac'), poor = holderOf('gov-page-99tac');
 balances.set(rich.addr, 250n * TAC); balances.set(poor.addr, 99n * TAC);
+weiNames.set(nodeOf('rich.wei'), rich.addr);
 
 // ── the browser ──
 let n = 0, fails = 0;
@@ -106,7 +115,7 @@ export function governanceApi() { return {
   createProposal: async (c) => window.__btcPropose(JSON.stringify(c), hex(wallet.pub)),
 }; }`;
 const btcCalls = [];
-async function open(holder, hash = '', { viewport = { width: 1280, height: 900 }, scheme = 'light', tacitKey = null } = {}) {
+async function open(holder, hash = '', { viewport = { width: 1280, height: 900 }, scheme = 'light', tacitKey = null, noDelegation = false, switchOnSign = null } = {}) {
   const ctx = await b.newContext({ viewport, colorScheme: scheme });
   const page = await ctx.newPage();
   const errs = [], csp = [], signed = [];
@@ -125,20 +134,23 @@ async function open(holder, hash = '', { viewport = { width: 1280, height: 900 }
     if (q.method() === 'POST' && /"method":"eth_/.test(body)) return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: ethAnswer(JSON.parse(body)) });
     return route.abort();
   });
+  if (noDelegation) await page.route(/^https:\/\/api\.tacit\.finance\/governance\/delegation/, (route) => route.fulfill({ status: 404, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{"error":"not found"}' }));
   await page.exposeFunction('__sign', async (hexMsg, account) => {
     const text = Buffer.from(hexMsg.slice(2), 'hex').toString('utf8');
     signed.push({ text, account });
-    return personalSign(holder.priv, text);
+    const sig = await personalSign(holder.priv, text);
+    if (switchOnSign) await page.evaluate((a) => { window.__acct = a; window.__cbs?.accountsChanged?.([a]); }, switchOnSign);   // the wallet moves to another account while the prompt is open
+    return sig;
   });
   await page.addInitScript((acct) => {
     const provider = {
       async request({ method, params }) {
-        if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [acct];
+        if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [window.__acct || acct];
         if (method === 'eth_chainId') return '0x1';
         if (method === 'personal_sign') return window.__sign(params[0], params[1]);
         throw Object.assign(new Error(`unsupported ${method}`), { code: 4200 });
       },
-      on() {}, removeListener() {},
+      on(ev, cb) { (window.__cbs ||= {})[ev] = cb; }, removeListener() {},
     };
     const info = { uuid: 'test-wallet', name: 'Test wallet', icon: '', rdns: 'test.wallet' };
     const announce = () => dispatchEvent(new CustomEvent('eip6963:announceProvider', { detail: Object.freeze({ info, provider }) }));
@@ -269,6 +281,180 @@ const tacitKey = { mode: 'passkey', priv: tacitPriv, pubHex: tacitPub, label: 'T
   await page.context().close();
 }
 
+// 2b. delegation: a 99-TAC wallet hands its vote to the 250-TAC wallet, which then votes with both; the 99 votes for itself and takes it back; a take-back
+let id2;
+{
+  const { page, errs, csp, signed } = await open(poor, '#delegate');
+  await connect(page);
+  await page.waitForSelector('#dgform');
+  ok(await text(page, '.ptitle') === 'Delegate your vote' && /not delegated/.test(await text(page, '.sec .note')), 'the delegate page says nothing is delegated yet');
+  ok(/Delegation/.test(await text(page, '#dg-side')), 'and the side card links to it');
+  await shot(page, 'gov-delegate');
+  await page.fill('#dg-to', 'not an address');
+  await page.click('#dg-go');
+  ok(/0x address or a name/.test(await text(page, '#note')) && signed.length === 0, 'something that is neither an address nor a name is refused before the wallet is asked');
+  ok(await page.getAttribute('#dg-to', 'placeholder') === '0x… or name.wei', 'the field says a name works too');
+  await page.fill('#dg-to', rich.addr);
+  ok(await page.getAttribute('[data-rights="vote"]', 'aria-checked') === 'true' && /^Sign and delegate to 0x/.test(await text(page, '#dg-go')), 'the vote right is the default, and the button names the address it signs for');
+  await page.click('#dg-go');
+  await page.waitForFunction(() => /Delegated\. It counts/.test(document.querySelector('#note')?.textContent || ''), null, { timeout: 30e3 });
+  const issued = +/Issued: (\d+)/.exec(signed[0]?.text || '')?.[1];
+  ok(signed.length === 1 && signed[0].text === delegateMessage({ network: 'mainnet', delegate: rich.addr, rights: 'vote', issued }), 'the wallet signed the delegation message');
+  const drec = await env.REGISTRY_KV.get(`gov:d:mainnet:${poor.addr}`, 'json');
+  ok(drec && drec.history.length === 1 && drec.history[0].to === rich.addr && drec.history[0].rights === 'vote', 'the worker recorded it under the signing account');
+  ok(new RegExp(rich.addr.slice(2, 8), 'i').test(await text(page, '.sec')) && await page.$('#dg-off'), 'the page shows the delegate and a way to take it back');
+  ok(/To 0x/i.test(await text(page, '#dg-side')), 'and the side card names them');
+  ok(errs.length === 0 && csp.length === 0, `no script errors and nothing the CSP refused (${errs.concat(csp).join(' | ')})`);
+  await page.context().close();
+}
+{
+  // the delegate sees who handed theirs over, opens a new proposal (after the delegation) and votes with both
+  const { page, errs, csp } = await open(rich, '#delegate');
+  await connect(page);
+  await page.waitForFunction(() => /1 · 99 TAC/.test(document.querySelector('.eyebrow .who')?.textContent || ''));
+  ok(/99 TAC to you/.test(await text(page, '#dg-side')) && (await page.$$('.feed .vrow')).length === 1, 'the delegate sees one holder and 99 TAC handed to them');
+  await shot(page, 'gov-delegated-to-you');
+  await page.goto(`${BASE}/govern/#new`); await page.waitForSelector('#newform');
+  await page.fill('#f-title', 'A second question after the delegation');
+  await page.waitForFunction(() => !document.querySelector('#f-go')?.disabled);
+  await page.click('#f-go');
+  await page.waitForFunction(() => /^#[0-9a-f]{64}$/.test(location.hash) && document.querySelector('.ptitle'), null, { timeout: 30e3 });
+  id2 = (await page.evaluate(() => location.hash)).slice(1);
+  await page.waitForSelector('#ballot');
+  await page.waitForFunction(() => /delegated to this wallet/.test(document.querySelector('#ballot')?.textContent || ''));
+  ok(/Also carries TAC delegated to this wallet/.test(await text(page, '#ballot')), 'the ballot says delegated TAC votes with this wallet');
+  await page.click('.opt:has-text("Yes")');
+  await page.click('#vote');
+  await page.waitForFunction(() => /Voted with/.test(document.querySelector('#step-eth')?.textContent || ''), null, { timeout: 30e3 });
+  ok(/Voted with 349 TAC, 99 TAC of it delegated to you/.test(await text(page, '#step-eth')), `it voted with its own 250 and the 99 handed to it (${await text(page, '#step-eth')})`);
+  const rows = await page.$$eval('.vrow', (r) => r.map((e) => e.textContent.replace(/\s+/g, ' ').trim()));
+  ok(rows.length === 1 && /349/.test(rows[0]) && /includes 99 TAC delegated by 1/.test(rows[0]), `the vote list says what it carries (${rows.join(' | ')})`);
+  ok(/Ethereum 349 TAC · 1/.test(await text(page, '#lane-e')), 'and the Ethereum side shows 349');
+  ok(errs.length === 0 && csp.length === 0, `no script errors and nothing the CSP refused (${errs.concat(csp).join(' | ')})`);
+  await shot(page, 'gov-delegate-voted');
+  await page.context().close();
+}
+{
+  // the delegator opens it, is told, and votes for themselves: their 99 leave the delegate's vote
+  const { page, errs, csp } = await open(poor, `#${id2}`);
+  await connect(page);
+  await page.waitForFunction(() => /you delegated to/i.test(document.querySelector('#ballot')?.textContent || ''));
+  ok(/vote with your TAC here unless you vote yourself/.test(await text(page, '#ballot')), 'the delegator is told their delegate votes for them unless they do');
+  await page.click('.opt:has-text("No")');
+  await page.click('#vote');
+  await page.waitForFunction(() => /Voted with/.test(document.querySelector('#step-eth')?.textContent || ''), null, { timeout: 30e3 });
+  ok(/Voted with 99 TAC/.test(await text(page, '#step-eth')), 'the delegator’s own vote counts their 99');
+  await page.waitForFunction(() => /No\s*99 TAC/.test(document.querySelectorAll('.res-h')[1]?.textContent || ''), null, { timeout: 15e3 });
+  const res = await page.$$eval('.res-h', (r) => r.map((e) => e.textContent.replace(/\s+/g, ' ').trim()));
+  ok(/^Yes ?250 TAC/.test(res[0]) && /^No ?99 TAC/.test(res[1]), `the 99 moved from the delegate's vote to their own (${res.join(' | ')})`);
+  const p2 = await env.REGISTRY_KV.get(`gov:p:mainnet:${id2}`, 'json');
+  ok(p2.tally.total_weight === String(349n * 10n ** 8n) && p2.tally.delegated_weight === '0', 'the same 349 TAC, counted once');
+  ok(errs.length === 0 && csp.length === 0, `no script errors and nothing the CSP refused (${errs.concat(csp).join(' | ')})`);
+  await page.context().close();
+}
+{
+  // taking it back (the worker waits five minutes between a wallet's changes, so move the last one back in time)
+  const key = `gov:d:mainnet:${poor.addr}`, rec = await env.REGISTRY_KV.get(key, 'json');
+  rec.history.forEach((h) => { h.at -= 900; h.issued -= 900; });
+  await env.REGISTRY_KV.put(key, JSON.stringify(rec));
+  const { page, errs, csp, signed } = await open(poor, '#delegate');
+  await connect(page);
+  await page.waitForSelector('#dg-off');
+  await page.click('#dg-off');
+  await page.waitForFunction(() => /taken back/.test(document.querySelector('#note')?.textContent || ''), null, { timeout: 30e3 });
+  ok(signed.length === 1 && /Delegate: none/.test(signed[0].text), 'the wallet signed a take-back');
+  const after = await env.REGISTRY_KV.get(key, 'json');
+  ok(after.history.length === 2 && after.history[1].to === null, 'the worker recorded it');
+  ok(/not delegated/.test(await text(page, '.sec .note')) && !(await page.$('#dg-off')), 'and the page says nothing is delegated');
+  ok(errs.length === 0 && csp.length === 0, `no script errors and nothing the CSP refused (${errs.concat(csp).join(' | ')})`);
+  await page.context().close();
+}
+{
+  // delegating to a .wei name: it is looked up, shown as the address it points at, and that address is what gets signed
+  const key = `gov:d:mainnet:${poor.addr}`, rec = await env.REGISTRY_KV.get(key, 'json');
+  rec.history.forEach((h) => { h.at -= 900; h.issued -= 900; });
+  await env.REGISTRY_KV.put(key, JSON.stringify(rec));
+  const { page, errs, csp, signed } = await open(poor, '#delegate');
+  await connect(page);
+  await page.waitForSelector('#dgform');
+  await page.fill('#dg-to', 'nobody.wei');
+  await page.waitForFunction(() => /does not point at an address/.test(document.querySelector('#dg-res')?.textContent || ''), null, { timeout: 15e3 });
+  ok(true, 'a name that points nowhere says so as it is typed');
+  await page.click('#dg-go');
+  await page.waitForFunction(() => /does not point at an address/.test(document.querySelector('#note')?.textContent || ''), null, { timeout: 15e3 });
+  ok(signed.length === 0, 'and pressing the button does not ask the wallet');
+  await page.fill('#dg-to', 'rich.com');
+  await page.click('#dg-go');
+  ok(signed.length === 0 && /0x address or a name/.test(await text(page, '#note')), 'a name from another service is not looked up');
+  await page.fill('#dg-to', 'Rich.WEI');
+  await page.waitForFunction((a) => (document.querySelector('#dg-res')?.textContent || '').includes(a), rich.addr, { timeout: 15e3 });
+  ok(await text(page, '#dg-res') === `rich.wei is ${rich.addr}`, `the name shows the address it points at (${await text(page, '#dg-res')})`);
+  await shot(page, 'gov-delegate-name');
+  await page.click('#dg-go');
+  await page.waitForFunction(() => /Delegated to rich\.wei/.test(document.querySelector('#note')?.textContent || ''), null, { timeout: 30e3 });
+  const issued = +/Issued: (\d+)/.exec(signed[0]?.text || '')?.[1];
+  ok(signed.length === 1 && signed[0].text === delegateMessage({ network: 'mainnet', delegate: rich.addr, rights: 'vote', issued }), 'the wallet signed the address the name points at');
+  const after = await env.REGISTRY_KV.get(key, 'json');
+  ok(after.history.at(-1).to === rich.addr, 'the worker recorded that address');
+  ok(/rich\.wei · 0x/i.test(await text(page, '.sec .kv b')) && /To rich\.wei/.test(await text(page, '#dg-side')), 'and the page shows the name beside it, in the card as well');
+  ok(errs.length === 0 && csp.length === 0, `no script errors and nothing the CSP refused (${errs.concat(csp).join(' | ')})`);
+  await page.context().close();
+}
+
+// 2c. an API without delegation: the page leaves it out, with or without a wallet
+{
+  const { page, errs, csp } = await open(poor, '', { noDelegation: true });
+  await page.waitForSelector('.blank, .prop');
+  await page.waitForFunction(() => !document.querySelector('#to-delegate') && !document.querySelector('#dg-side'));
+  ok(true, 'no Delegate button or side row where the API has no delegation');
+  await connect(page);
+  await page.waitForFunction(() => /99 TAC/.test(document.querySelector('#side')?.textContent || ''));
+  ok(!(await page.$('#to-delegate')) && !(await page.$('#dg-side')), 'and none once a wallet is connected');
+  await page.evaluate(() => { location.hash = 'delegate'; });
+  await page.waitForSelector('.ptitle');
+  ok(/not available yet/.test(await text(page, '.lede')), 'a link straight to the delegate page says it is not available yet');
+  ok(errs.length === 0 && csp.length === 0, `no script errors and nothing the CSP refused (${errs.concat(csp).join(' | ')})`);
+  await page.context().close();
+}
+// 2d. the wallet flow's guards: a name that moves between lookup and press is not signed, and an account switch mid-prompt records nothing
+{
+  const other = holderOf('gov-page-other-wallet');
+  const key = `gov:d:mainnet:${poor.addr}`;
+  const back = async () => { const r = await env.REGISTRY_KV.get(key, 'json'); r.history.forEach((h) => { h.at -= 900; h.issued -= 900; }); await env.REGISTRY_KV.put(key, JSON.stringify(r)); };
+  await back();
+  const before = (await env.REGISTRY_KV.get(key, 'json')).history.length;
+  const { page, errs, csp, signed } = await open(poor, '#delegate');
+  await connect(page);
+  await page.waitForSelector('#dgform');
+  await page.fill('#dg-to', 'moves.wei'); weiNames.set(nodeOf('moves.wei'), rich.addr);
+  await page.waitForFunction((a) => (document.querySelector('#dg-res')?.textContent || '').includes(a), rich.addr, { timeout: 15e3 });
+  ok(/to moves\.wei$/.test(await text(page, '#dg-go')), 'the button names who it will sign for');
+  weiNames.set(nodeOf('moves.wei'), other.addr);                      // the name changes hands before the press
+  await page.click('#dg-go');
+  await page.waitForFunction((a) => (document.querySelector('#dg-res')?.textContent || '').includes(a), other.addr, { timeout: 15e3 });
+  ok(signed.length === 0 && /now points at a different address/.test(await text(page, '#note')), 'a name that moved since it was shown is not signed: the new address is shown instead');
+  ok((await env.REGISTRY_KV.get(key, 'json')).history.length === before, 'and nothing was recorded');
+  ok(errs.length === 0 && csp.length === 0, `no script errors and nothing the CSP refused (${errs.concat(csp).join(' | ')})`);
+  await page.context().close();
+}
+{
+  // the wallet switches account while the prompt is open: what the first account signed is not sent
+  const other = holderOf('gov-page-other-wallet');
+  balances.set(other.addr, 40n * TAC);
+  const key = `gov:d:mainnet:${poor.addr}`, before = (await env.REGISTRY_KV.get(key, 'json')).history.length;
+  const { page, errs, csp, signed } = await open(poor, '#delegate', { switchOnSign: other.addr });
+  await connect(page);
+  await page.waitForSelector('#dgform');
+  await page.fill('#dg-to', rich.addr);
+  await page.click('#dg-go');
+  await page.waitForFunction(() => /account changed/.test(document.querySelector('#note')?.textContent || ''), null, { timeout: 30e3 });
+  ok(signed.length === 1, 'the prompt was shown once');
+  ok((await env.REGISTRY_KV.get(key, 'json')).history.length === before && !(await env.REGISTRY_KV.get(`gov:d:mainnet:${other.addr}`, 'json')), 'but nothing was recorded for either account');
+  ok(/Nothing was sent/.test(await text(page, '#note')), 'and the page says so');
+  ok(errs.length === 0 && csp.length === 0, `no script errors and nothing the CSP refused (${errs.concat(csp).join(' | ')})`);
+  await page.context().close();
+}
+
 // 3. under the floor; a phone in dark
 {
   const { page, errs, csp, signed } = await open(poor, '#new', { viewport: { width: 390, height: 844 }, scheme: 'dark' });
@@ -280,6 +466,9 @@ const tacitKey = { mode: 'passkey', priv: tacitPriv, pubHex: tacitPub, label: 'T
   await shot(page, 'gov-phone-new');
   await page.goto(`${BASE}/govern/#${id}`); await page.waitForSelector('.vrow');
   ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'nor on a proposal');
+  await page.evaluate(() => { location.hash = 'delegate'; }); await page.waitForSelector('#dgform');
+  ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'nor on the delegate page');
+  await shot(page, 'gov-phone-delegate');
   await shot(page, 'gov-phone-detail');
   ok(errs.length === 0 && csp.length === 0, `no script errors and nothing the CSP refused (${errs.concat(csp).join(' | ')})`);
   await page.context().close();

@@ -1,5 +1,5 @@
 // Client for the Bitcoin shielded pool: the proving artifacts, the proof system, and the replay service and
-// relayer APIs. Used by the browser (dapp/sats) and by Node drivers (tests/secret-sats-e2e-signet.mjs).
+// relayer APIs. Used by the browser (dapp/sats) and by Node drivers.
 //
 // Artifacts: /btc-pool/pin.json names the prover wasm, the params and the verification key with their SHA-256,
 // and the key's BLAKE2b-512 (vk_hash). They are fetched once, checked against the pin, and kept in the Cache
@@ -182,6 +182,8 @@ export function makePoolClient({ api = POOL_API, relayApi = null, base = '/btc-p
   const path = (leafIndex, at) => getJson(`${api}/btc-pool/path/${leafIndex}?at=${at}`);
   const nullifier = (nf) => getJson(`${api}/btc-pool/nullifier/${strip(nf)}`);
   const exit = (txid, vout) => getJson(`${api}/btc-pool/exit/${strip(txid)}/${vout}`);
+  // What the replay made of the pool envelopes in one transaction: { seen, height, envelopes: [{ height, vin, opcode, accepted, reason }] }. A replay without the route answers 404.
+  const envelope = (txid) => getJson(`${api}/btc-pool/envelope/${strip(txid)}`);
 
   // The note feed, read again only when the last read is over 20 s old (a spend reads it right after the balance did). A later
   // read keeps the notes it has and asks only from twelve blocks below its newest note on, for reorgs; `fresh` reads it all.
@@ -358,5 +360,5 @@ export function makePoolClient({ api = POOL_API, relayApi = null, base = '/btc-p
   const submit = (body) => getJson(`${rApi}/btc-pool/relay/submit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const relayStatus = (id) => getJson(`${rApi}/btc-pool/relay/status/${id}`);
 
-  return { pin, system, artifactBytes, artifactsCached, status, allNotes, feedHas, path, nullifier, exit, walletNotes, scanMine, anchorAndPaths, relayInfo, quote, submit, relayStatus, api };
+  return { pin, system, artifactBytes, artifactsCached, status, allNotes, feedHas, path, nullifier, exit, envelope, walletNotes, scanMine, anchorAndPaths, relayInfo, quote, submit, relayStatus, api };
 }

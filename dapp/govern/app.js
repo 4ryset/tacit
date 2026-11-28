@@ -1,15 +1,15 @@
-import { makeConnect } from '/trade/connect.js?cb=514272b7';
+import { makeConnect } from '/trade/connect.js?cb=c1a728a3';
 import { declinedWords } from '/wallet-prompts.js';
 import { addrView } from '/address-view.js?cb=58dd4914';
 import { esc } from '/trade/sheet.js?cb=d857446c';
 import { API, $, fmtUnits, rpc } from '/trade/util.js?cb=9c8b4133';
 import { TAC as TAC_ERC20 } from '/trade/farm-read.js?cb=fb6ec72f';
-import { makeKeySession, signInSheet } from '/trade/key.js?cb=e9a3a06d';
-import { openBtcWallet } from '/trade/btc-session.js?cb=185e1bbc';
+import { makeKeySession, signInSheet } from '/trade/key.js?cb=6d715552';
+import { openBtcWallet } from '/trade/btc-session.js?cb=b5f81297';
 import { makeTacitSession } from '/tacit-session.js?cb=4636e436';
 import { isPasskeyAvailable } from '/prf-wallet.js';
-import { secp, bytesToHex, hexToBytes } from '/vendor/tacit-deps.min.js';
-import { GOV_NETWORK, PROPOSE_FLOOR_TAC, CATEGORIES, voteMessage, proposeMessage } from '/govern/message.js?cb=c73bd573';
+import { secp, keccak_256, bytesToHex, hexToBytes } from '/vendor/tacit-deps.min.js';
+import { GOV_NETWORK, PROPOSE_FLOOR_TAC, CATEGORIES, voteMessage, proposeMessage, delegateMessage } from '/govern/message.js?cb=7d912cb1';
 import { invaderSvg } from '/prove/invader.js?cb=e8a5ec59';
 
 // TAC holders signal on proposals here, from either chain or both at once.
@@ -17,7 +17,7 @@ import { invaderSvg } from '/prove/invader.js?cb=e8a5ec59';
 //   Bitcoin: the holder opens their Tacit wallet (an Ethereum wallet's signature, a passkey or a Bitcoin wallet, the site's usual sign-in) and tacit.js,
 //   loaded only then, proves the TAC they held clears a tier without showing the exact amount: the same proof the classic app makes.
 // Each chain's vote is its own, counted in one tally; this page shows the two sides apart.
-const TACIT_URL = '/tacit.js?cb=62ba2f62';
+const TACIT_URL = '/tacit.js?cb=dd8b0a1f';
 const TAC_BASE = 10n ** 8n;
 const q = (p) => `${API}/governance${p}${p.includes('?') ? '&' : '?'}network=${GOV_NETWORK}`;
 const S = {
@@ -26,13 +26,14 @@ const S = {
   btc: null, btcReading: false, btcErr: '',                       // Bitcoin: TAC held by the open Tacit wallet (8 decimals)
   use: { eth: true, btc: true }, tier: null, from: null,          // the ballot's sources, the Bitcoin tier, and which chain opens a proposal
   steps: {},                                                      // per source, what happened on the last cast
+  dg: { avail: undefined, me: null, toYou: null, to: '', rights: 'vote', res: null },   // delegation: whether the API has it, who this wallet points at, who points at it, the form
 };
 const say = (text, bad = false) => { S.note = text; S.bad = bad; const el = $('#note'); if (el) { el.className = `status${bad ? ' err' : ''}`; el.textContent = text; } };
 
 // ── the two ways in ──
 const conn = makeConnect({
   describe: 'tacit gov: vote on TAC proposals', name: 'tacit gov', rewards: false,
-  say: (t, b) => say(t, b), busy: () => S.busy, onChange: () => { S.bal = null; S.weight = undefined; render(); readBalance(); readWeight(); },
+  say: (t, b) => say(t, b), busy: () => S.busy, onChange: () => { S.bal = null; S.weight = undefined; S.dg.me = null; S.dg.toYou = null; render(); readBalance(); readWeight(); readDelegation(); },
 });
 const W = conn.W;
 $('#wallet-chip').hidden = false;
@@ -93,6 +94,20 @@ async function readWeight() {
     const raw = await balanceCall(who, `0x${p.eth_snapshot_block.toString(16)}`);
     if (S.p?.id === p.id && who === W.account && /^0x[0-9a-fA-F]{64}$/.test(raw || '')) { S.weight = BigInt(raw); render(); }
   } catch { /* no archive answer */ }
+}
+// who this wallet hands its TAC to, and who hands theirs to it. An API without delegation answers 404: the page then leaves delegation out.
+async function readDelegation() {
+  const who = W.account; if (!who) return;
+  try {
+    const j = await getJson(`/delegation?address=${who.toLowerCase()}`);
+    if (who === W.account) { S.dg.avail = true; S.dg.me = j.delegate || null; S.dg.toYou = j.delegated_to_you || null; render(); }
+  } catch (e) { if (e.status === 404 || e.status === 405) { S.dg.avail = false; render(); } }
+}
+// whether the API has delegation at all, asked once on load so the page offers it only where it works (a wallet is not needed for that)
+async function probeDelegation() {
+  try { await getJson('/delegation?address=0x0000000000000000000000000000000000000001'); S.dg.avail = true; }
+  catch (e) { if (e.status === 404 || e.status === 405) S.dg.avail = false; }
+  render();
 }
 // the TAC the open Tacit wallet holds on Bitcoin (a scan of its coins, done by tacit.js)
 let btcSeq = 0;
@@ -156,7 +171,7 @@ const myVotes = (p) => ({
 // ── views ──
 function render() {
   const root = $('#app');
-  root.innerHTML = S.route.name === 'new' ? newView() : S.route.name === 'detail' ? detailView() : listView();
+  root.innerHTML = S.route.name === 'new' ? newView() : S.route.name === 'detail' ? detailView() : S.route.name === 'delegate' ? delegateView() : listView();
   wire(root);
   renderSide();
   const note = $('#note', root);
@@ -179,6 +194,7 @@ function renderSide() {
     </div>
     <div class="side-rule"></div>
     <div class="kv"><span>To open a proposal</span><b class="num">${PROPOSE_FLOOR_TAC} TAC</b></div>
+    ${S.dg.avail === false ? '' : `<div class="kv" id="dg-side"><span>Delegation</span><b>${S.dg.me ? `To ${nameFor(S.dg.me.to) ? esc(nameFor(S.dg.me.to)) : addrView(S.dg.me.to, 4)} · <a href="#delegate">Change</a>` : S.dg.toYou?.count ? `${esc(fmtTac(S.dg.toYou.weight))} TAC to you · <a href="#delegate">View</a>` : '<a href="#delegate">Delegate your vote</a>'}</b></div>`}
     <p class="note">A vote weighs the TAC held when its proposal opened. Vote from one chain or both at once: each counts on its own.</p>
     <p class="note">A Bitcoin vote proves the TAC you hold clears a tier (1, 10, 100… TAC) without showing the amount.</p>`;
   $('#side-connect', side)?.addEventListener('click', () => conn.connect());
@@ -207,7 +223,7 @@ function listView() {
         <span class="prop-meta">${lead}<span class="mute">${esc(fmtTac(tl.total_weight))} TAC · ${tl.private_voters || 0} Bitcoin · ${tl.public_voters || 0} Ethereum</span></span></a>`;
     }).join('') : `<div class="blank"><p>No ${S.filter === 'active' ? 'open ' : ''}proposals${S.filter ? '' : ' yet'}.</p><a class="linkbtn" href="#new">Open one</a></div>`;
   }
-  return `<div class="bar"><div class="chips" role="group" aria-label="Show">${chips}</div><a class="btn sm" href="#new">New proposal</a></div>
+  return `<div class="bar"><div class="chips" role="group" aria-label="Show">${chips}</div><span class="bar-r">${S.dg.avail === false ? '' : '<a class="btn sm ghost" href="#delegate" id="to-delegate">Delegate</a>'}<a class="btn sm" href="#new">New proposal</a></span></div>
     <div class="props">${body}</div>`;
 }
 
@@ -219,7 +235,11 @@ function sources(p) {
     : noEth ? 'This proposal opened without an Ethereum snapshot.'
       : S.weight == null ? 'Counts the TAC held at the snapshot block.'
         : S.weight === 0n ? `Held no TAC at block ${p.eth_snapshot_block}, so it has no vote here.` : `${fmtUnits(S.weight, 18, 2)} TAC, held at block ${p.eth_snapshot_block}.`;
-  if (S.weight === 0n) eth.ready = false;
+  const carried = S.dg.toYou?.count ? ` Also carries TAC delegated to this wallet before the proposal opened (${S.dg.toYou.count} holder${S.dg.toYou.count === 1 ? '' : 's'} now); a holder who votes themselves is left out.` : '';
+  const gone = S.dg.me && S.dg.me.at <= (p.created_at || 0) ? ` You delegated to ${nameFor(S.dg.me.to) || `${S.dg.me.to.slice(0, 6)}…${S.dg.me.to.slice(-4)}`}: they vote with your TAC here unless you vote yourself.` : '';
+  if (eth.ready || (S.weight === 0n && S.dg.toYou?.count)) eth.line += carried + gone;
+  else if (W.account && gone) eth.line += gone;
+  if (S.weight === 0n && !S.dg.toYou?.count) eth.ready = false;
   const opts = tiersFor(S.btc);
   const btc = { key: 'btc', ready: tacitOn() && opts.length > 0, mine: mine.btc, opts };
   btc.line = !tacitOn() ? 'Open your Tacit wallet to vote with the TAC it holds.'
@@ -276,7 +296,7 @@ function detailView() {
   const feed = votes.length ? `<div class="sec"><p class="eyebrow">Votes <span class="who">${p.votes.length}</span></p><div class="feed">${votes.map((v) => {
     const btc = isBtc(v);
     return `<div class="vrow">${face(v.voter, 32) || '<span class="inv"></span>'}<span class="vwho">${chainTag(btc)} ${btc ? keyLabel(v.voter) : isAddr(v.voter) ? addrView(v.voter, 4) : '—'}</span>
-      <span class="vch">${esc(p.choices[v.choice] ?? '')}</span><b class="num">${btc ? '≥ ' : ''}${esc(fmtTac(v.weight))}</b><span class="mute vt">${esc(ago(v.voted_at || 0))}</span></div>`;
+      <span class="vch">${esc(p.choices[v.choice] ?? '')}</span><b class="num">${btc ? '≥ ' : ''}${esc(fmtTac(v.weight))}</b><span class="mute vt">${esc(ago(v.voted_at || 0))}${big(v.delegated_weight) > 0n ? ` · includes ${esc(fmtTac(v.delegated_weight))} TAC delegated by ${(v.delegators || []).filter((d) => d.counted).length}` : ''}</span></div>`;
   }).join('')}</div></div>` : '';
   return `${back}<div class="prop-top">${pill(p)}<span class="mute">${esc(when(p))}</span></div>
     <h2 class="ptitle">${esc(p.title)}</h2>
@@ -323,7 +343,99 @@ function newView() {
     </form>`;
 }
 
+// ── delegation ──
+// A delegate can be typed as a name: alice.wei (or .gwei, .eth) is looked up on Ethereum, by the same reader the Send card uses, and the address it
+// points at is what gets signed (the wallet's prompt shows that address). A name the holder used is remembered here to show beside the address.
+const nameOf = (v) => (/^[a-z0-9-]+(\.[a-z0-9-]+)*\.(wei|gwei|eth)$/i.test(v || '') ? String(v).toLowerCase() : '');
+let namesApi = null;
+const getNames = () => (namesApi ||= import('/confidential-names.js?cb=b0ce51f3').then((m) => m.makeConfidentialNames({ call: m.makeMainnetCall(), secp, keccak256: keccak_256 })));
+async function addressOfName(name) {
+  let r;
+  try { r = await (await getNames()).resolveAddress(name); }
+  catch (e) { throw new Error(e.name === 'NameError' ? e.message : `Could not look up ${name} just now. Try again, or paste its 0x address.`); }
+  if (!r || !isAddr(r.address)) throw new Error(`${name} does not point at an address yet. Paste the 0x address instead.`);
+  return r.address.toLowerCase();
+}
+const NAMES_KEY = 'tacit-gov-delegate-names-v1';
+const savedNames = () => { try { return JSON.parse(localStorage.getItem(NAMES_KEY) || '{}') || {}; } catch { return {}; } };
+const nameFor = (addr) => (addr ? savedNames()[addr.toLowerCase()] || '' : '');
+const rememberName = (addr, name) => { try { const m = savedNames(); m[addr.toLowerCase()] = name; localStorage.setItem(NAMES_KEY, JSON.stringify(m)); } catch { /* the address alone shows */ } };
+const resLine = (r) => (!r ? '' : r.state === 'reading' ? `Looking up ${esc(r.name)}…` : r.state === 'ok' ? `${esc(r.name)} is ${esc(r.address)}` : esc(r.text));
+let peekTimer = 0;
+// as a name is typed, show the address it points at without redrawing the field
+function peek() {
+  clearTimeout(peekTimer);
+  const raw = S.dg.to, name = nameOf(raw);
+  if (!name) { S.dg.res = null; paintRes(); return; }
+  if (S.dg.res?.name === name && S.dg.res.state !== 'reading') { paintRes(); return; }
+  S.dg.res = { name, state: 'reading' }; paintRes();
+  peekTimer = setTimeout(async () => {
+    try { const address = await addressOfName(name); if (S.dg.to !== raw) return; S.dg.res = { name, state: 'ok', address }; }
+    catch (e) { if (S.dg.to !== raw) return; S.dg.res = { name, state: 'err', text: e.message }; }
+    paintRes();
+  }, 450);
+}
+function paintRes() {
+  const el = $('#dg-res'); if (!el) return;
+  const t = resLine(S.dg.res); el.innerHTML = t; el.hidden = !t; el.className = `mute${S.dg.res?.state === 'err' ? ' err' : ''}`;
+  paintGo();
+}
+// the button says who it will sign for, so what is signed is never a surprise
+const shortAddr = (a) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+function goLabel() {
+  if (S.busy) return 'Waiting for your wallet…';
+  const d = S.dg, to = d.res?.state === 'ok' ? d.res.name : isAddr(d.to) ? shortAddr(d.to) : '';
+  return `${d.me ? 'Sign and change' : 'Sign and delegate'}${to ? ` to ${to}` : ''}`;
+}
+function paintGo() { const b = $('#dg-go'); if (b && !S.busy) b.textContent = goLabel(); }
+function delegateView() {
+  const d = S.dg, on = !!W.account, back = '<p class="eyebrow"><a href="#">← All proposals</a></p>';
+  if (d.avail === false) return `${back}<h2 class="ptitle">Delegate your vote</h2><p class="lede">Delegation is not available yet.</p>`;
+  const me = d.me, yours = d.toYou;
+  const rightsWord = (r) => (r === 'all' ? 'Vote and open proposals' : 'Vote');
+  const current = me
+    ? `<div class="kv"><span>Delegate</span><b class="who-f">${face(me.to, 22)}${nameFor(me.to) ? `${esc(nameFor(me.to))} · ` : ''}${addrView(me.to, 5)}</b></div>
+       <div class="kv"><span>Rights</span><b>${rightsWord(me.rights)}</b></div>
+       <div class="kv"><span>Since</span><b>${esc(new Date(me.at * 1000).toLocaleDateString())}</b></div>
+       <button class="btn ghost" type="button" id="dg-off" ${S.busy ? 'disabled' : ''} style="margin-top:10px">${S.busy ? 'Waiting…' : 'Take it back'}</button>`
+    : '<p class="note" style="margin:0">You have not delegated. Your TAC votes only when you do.</p>';
+  const list = yours?.count
+    ? `<div class="feed">${yours.delegators.map((x) => `<div class="vrow">${face(x.address, 32)}<span class="vwho">${addrView(x.address, 4)}</span><span class="vch">${rightsWord(x.rights)}</span><b class="num">${esc(fmtTac(x.weight))}</b></div>`).join('')}</div>${yours.truncated ? '<p class="note">More holders than this list shows.</p>' : ''}`
+    : '<p class="note" style="margin:0">Nobody has delegated to this wallet.</p>';
+  return `${back}<h2 class="ptitle">Delegate your vote</h2>
+    <p class="lede">Let someone you trust vote with the TAC in your Ethereum wallet. It counts on proposals that open after you sign. You can vote yourself on any proposal, and that vote replaces theirs for your TAC. Take it back whenever you like.</p>
+    ${on ? `<div class="sec"><p class="eyebrow">Your delegate</p>${current}</div>
+    <form class="form sec" id="dgform">
+      <label class="f"><span class="lbl">${me ? 'Change to' : 'Delegate to'}</span><input class="fld" id="dg-to" inputmode="text" autocomplete="off" spellcheck="false" placeholder="0x… or name.wei" value="${esc(d.to)}"><small id="dg-res" class="mute${d.res?.state === 'err' ? ' err' : ''}" aria-live="polite"${resLine(d.res) ? '' : ' hidden'}>${resLine(d.res)}</small></label>
+      <div class="f"><span class="lbl">What they can do</span><div class="seg two-way" role="radiogroup" aria-label="What they can do">${[['vote', 'Vote'], ['all', 'Vote and open proposals']].map(([k, l]) => `<button type="button" role="radio" aria-checked="${d.rights === k}" class="${d.rights === k ? 'on' : ''}" data-rights="${k}">${l}</button>`).join('')}</div></div>
+      <button class="btn" type="submit" id="dg-go" ${S.busy ? 'disabled' : ''}>${goLabel()}</button>
+      <p class="status" id="note" aria-live="polite"></p>
+    </form>
+    <div class="sec"><p class="eyebrow">Delegated to you <span class="who">${yours ? yours.count : 0}${yours?.count ? ` · ${esc(fmtTac(yours.weight))} TAC` : ''}</span></p>${list}</div>`
+    : `<div class="sec"><button class="btn" type="button" id="dg-connect">Connect wallet</button></div>`}
+    <p class="note">This covers the TAC in your Ethereum wallet. TAC on Bitcoin, or shielded, votes from its own key and is not delegated. Your wallet asks you to sign a message that names the delegate and what they can do. Delegations are public: anyone can see who a wallet delegates to.</p>`;
+}
+
 // ── actions ──
+async function setDelegate(to, rights, name = '') {
+  if (!W.account) { await conn.connect(); return; }
+  if (to && !isAddr(to)) { say('Enter a 0x address or a name ending in .wei.', true); return; }
+  if (to && to.toLowerCase() === W.account.toLowerCase()) { say('That is your own address.', true); return; }
+  if (S.busy) return;
+  S.busy = true; render();
+  try {
+    const c = { network: GOV_NETWORK, delegate: to.toLowerCase(), rights, issued: Math.floor(Date.now() / 1000) };
+    const sig = await conn.wallet.signMessage(delegateMessage(c), W.account);   // the wallet layer sends nothing if the account changes while it asks
+    await getJson('/delegate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ delegate: c.delegate, rights: c.rights, issued: c.issued, eth_sig: sig }) });
+    S.busy = false; S.dg.to = ''; S.dg.res = null;
+    if (to && name) rememberName(to, name);
+    await readDelegation(); render();
+    say(to ? `Delegated${name ? ` to ${name}` : ''}. It counts on proposals that open from now on.` : 'Your delegation is taken back.');
+  } catch (e) {
+    S.busy = false; render();
+    say(e.userStopped || e.unlockCancelled ? declinedWords(e, 'Nothing was sent.') : plain(e), !e.userStopped);
+  }
+}
 function wire(root) {
   root.querySelectorAll('[data-f]').forEach((b) => { b.onclick = () => { S.filter = b.dataset.f; render(); }; });
   $('#retry', root)?.addEventListener('click', () => (S.route.name === 'detail' ? loadProposal(S.route.id) : loadList()));
@@ -337,6 +449,33 @@ function wire(root) {
     $('#b-btc', ballot)?.addEventListener('click', (e) => { e.preventDefault(); signIn(); });
   }
   $('#fin', root)?.addEventListener('click', finalize);
+  $('#dg-connect', root)?.addEventListener('click', () => conn.connect());
+  $('#dg-off', root)?.addEventListener('click', () => setDelegate('', 'vote'));
+  const dgf = $('#dgform', root);
+  if (dgf) {
+    dgf.oninput = () => { S.dg.to = $('#dg-to').value.trim(); if (S.note) say(''); peek(); };
+    dgf.querySelectorAll('[data-rights]').forEach((b) => { b.onclick = () => { S.dg.to = $('#dg-to').value.trim(); S.dg.rights = b.dataset.rights; render(); }; });
+    dgf.onsubmit = async (e) => {
+      e.preventDefault(); S.dg.to = $('#dg-to').value.trim();
+      if (!S.dg.to) { say('Enter the address or name to delegate to.', true); return; }
+      const name = isAddr(S.dg.to) ? '' : nameOf(S.dg.to);
+      if (!isAddr(S.dg.to) && !name) { say('Enter a 0x address or a name ending in .wei.', true); return; }
+      if (!name) { setDelegate(S.dg.to, S.dg.rights); return; }
+      // a name is looked up again at the press, and signed only if it still points where the page showed
+      const shown = S.dg.res?.name === name && S.dg.res.state === 'ok' ? S.dg.res.address : '';
+      say(`Checking ${name}…`);
+      let address;
+      try { address = await addressOfName(name); } catch (err) { say(err.message, true); return; }
+      if (address !== shown) {
+        S.dg.res = { name, state: 'ok', address }; paintRes();
+        say(shown ? `${name} now points at a different address. Check it, then press again.` : 'Check the address above, then press again.', !!shown);
+        return;
+      }
+      say('');
+      setDelegate(address, S.dg.rights, name);
+    };
+    peek();
+  }
   const form = $('#newform', root);
   if (form) {
     const d = S.draft, keep = () => {
@@ -369,7 +508,7 @@ async function castVotes() {
         const sig = await conn.wallet.signMessage(voteMessage(p.id, c, p.choices[c]), W.account);
         step('eth', 'Counting your TAC…');
         const j = await getJson(`/proposal/${p.id}/vote`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'public', choice: c, eth_sig: sig }) });
-        step('eth', `Voted with ${fmtTac(j.weight)} TAC${j.revote ? ' (changed)' : ''}.`, { ok: true });
+        step('eth', `Voted with ${fmtTac(j.weight)} TAC${big(j.delegated_weight) > 0n ? `, ${fmtTac(j.delegated_weight)} TAC of it delegated to you` : ''}${j.revote ? ' (changed)' : ''}.`, { ok: true });
       } else {
         const tier = S.tier ?? src.btc.opts[src.btc.opts.length - 1];
         step('btc', `Proving at least ${fmtTac(tier)} TAC…`);
@@ -419,7 +558,11 @@ async function finalize() {
 // the API's words, said plainly
 function plain(e) {
   const m = String(e.message || 'Something went wrong.');
-  if (/needs \d+ TAC held at the snapshot/.test(m)) return `Opening a proposal needs ${PROPOSE_FLOOR_TAC} TAC held a few blocks ago. TAC that just arrived counts after a few minutes.`;
+  if (/wait \d+ more minute/.test(m)) return `${m.charAt(0).toUpperCase()}${m.slice(1)}.`;
+  if (/less than 1 TAC, so there is nothing to delegate/.test(m)) return 'This wallet holds no TAC to delegate.';
+  if (/newer delegation/.test(m)) return 'A newer delegation from this wallet is already recorded. Reload and check.';
+  if (/delegator's TAC balance/.test(m)) return 'A balance could not be read just now. Try again in a minute.';
+  if (/needs \d+ TAC held at the snapshot/.test(m)) return `Opening a proposal needs ${PROPOSE_FLOOR_TAC} TAC held a few blocks ago, or handed to you with the right to open proposals. TAC that just arrived counts after a few minutes.`;
   if (/held no TAC at the snapshot/.test(m)) return 'This account held no TAC when the proposal opened, so it has no vote here.';
   if (/not confirmed by the snapshot|spent by the snapshot/.test(m)) return 'Your Bitcoin TAC moved after this proposal opened, so it votes as it stood then. Pick a lower tier, or it has no vote here.';
   if (/could not cover tier/.test(m)) return 'Your Tacit wallet does not hold that much TAC. Pick a lower tier.';
@@ -434,6 +577,7 @@ function route() {
   S.choice = undefined; S.weight = undefined; S.note = ''; S.steps = {};
   if (/^[0-9a-f]{64}$/.test(h)) { S.route = { name: 'detail', id: h }; loadProposal(h); }
   else if (h === 'new') { S.route = { name: 'new' }; render(); }
+  else if (h === 'delegate') { S.route = { name: 'delegate' }; render(); readDelegation(); }
   else { S.route = { name: 'list' }; loadList(); }
   if (S.bal == null) readBalance();
   window.scrollTo(0, 0);
@@ -446,4 +590,5 @@ setInterval(() => {
   else if (S.route.name === 'detail' && S.p?.status === 'active') loadProposal(S.route.id, { quiet: true });
 }, 60e3);
 route();
+probeDelegation();
 if (tacitOn()) readBtc();      // a Tacit wallet this tab already opened on another page of the site

@@ -216,6 +216,48 @@ export async function depositFee(get = globalThis.fetch, keeper = CHAIN.keeper) 
   return BigInt(least);
 }
 
+// The circuit and key have gzip copies beside them (a third smaller): fetched first, opened here, and held to the same pinned hash as the plain file,
+// which is fetched instead when the copy is missing, cannot be opened, or does not match.
+const gzOf = (name) => /\.(wasm|zkey)$/.test(name) && typeof DecompressionStream === 'function';
+const gunzip = async (z) => (z[0] === 0x1f && z[1] === 0x8b ? new Uint8Array(await new Response(new Blob([z]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()) : z);
+const zapApprovals = (token, amount, had) => [...(had > 0n && lc(token) === USDT ? [{ to: token, data: encApprove(ZAP, 0n), value: 0n }] : []), { to: token, data: encApprove(ZAP, amount), value: 0n }];
+// How the zap (ZAP) takes `amount` of `token` from the signer, asking the least of it: an allowance in place; an EIP-2612 permit (not DAI's) or a Permit2
+// signature transfer, each checked on chain first; the approval in one batch with the deposit (`before`) where the wallet takes batches; else an approval of
+// exactly the amount, mined first (USDT's set to zero before, as USDT asks). → zapDeposit's `pull` (and `before`, the batch's approvals).
+// `signer`: { address, send, signTyped?, batch?, canBatch? }; `mined(hash)` waits for a receipt and throws on a failed one; `calldata` → the gateway's encoder.
+export async function zapPullWith({ ethCall, signer, mined, calldata, token, sym, amount, deadline, onStep = () => {} }) {
+  const owner = signer.address, acc = await readAccess({ ethCall, token, owner, spender: ZAP });
+  if (acc.balance < amount) throw new Error(`Not enough ${sym} in the wallet for the deposit. Nothing was sent.`);
+  if (acc.allowed >= amount) return { kind: 'allowance' };
+  if (signer.signTyped) {
+    const t = await readToken({ ethCall, keccak256: keccak_256, address: token }).catch(() => null);
+    if (t?.permit && acc.nonce != null && lc(token) !== DAI) {
+      try {
+        onStep('sign the permit');
+        const p = splitSig(await signer.signTyped(permitTyped({ token, name: t.name, version: t.permit, owner, spender: ZAP, value: amount, nonce: acc.nonce, deadline })));
+        await ethCall(token, '0xd505accf' + word(owner) + word(ZAP) + amount.toString(16).padStart(64, '0') + BigInt(deadline).toString(16).padStart(64, '0') + p.v.toString(16).padStart(64, '0') + word(p.r) + word(p.s), 'latest');
+        return { kind: 'permit', value: amount, deadline: BigInt(deadline), ...p };
+      } catch (e) { if (declined(e)) throw e; }
+    }
+    if (acc.permit2 >= amount) {
+      try {
+        onStep('sign the permit');
+        const nonce = permit2Nonce(), sig = await signer.signTyped(permit2Typed({ token, amount, nonce, deadline, spender: ZAP }));
+        const enc = await calldata();
+        await ethCall(PERMIT2, enc('permitTransferFrom(((address,uint256),uint256,uint256),(address,uint256),address,bytes)', [{ tuple: [{ tuple: ['address', 'uint256'] }, 'uint256', 'uint256'] }, { tuple: ['address', 'uint256'] }, 'address', 'bytes'],
+          [[[token, amount], nonce, BigInt(deadline)], [ZAP, amount], owner, sig]), 'latest', { from: ZAP });
+        return { kind: 'permit2', nonce, deadline: BigInt(deadline), sig };
+      } catch (e) { if (declined(e)) throw e; }
+    }
+  }
+  const ask = zapApprovals(token, amount, acc.allowed);
+  if (signer.batch && signer.canBatch && await Promise.resolve(signer.canBatch()).catch(() => false)) return { kind: 'allowance', before: ask };
+  let zeroed = false;
+  try { for (const c of ask) { const reset = c.data === encApprove(ZAP, 0n); onStep(reset ? 'reset the allowance' : 'approve'); await mined(await signer.send(c)); if (reset) zeroed = true; } }
+  catch (e) { throw zeroed ? afterReset(e) : e; }
+  return { kind: 'allowance' };
+}
+
 export function makeLater({ keyHex, signer, ethCall, venues = null, ux = null, sendPrivate = null, store = globalThis.localStorage, chain = CHAIN, prove: proveWith = null, tokens = null, walletOf = null, routes = {}, knows = null, callRan = null, gasPrice: gasNow = null, now = Date.now }) {
   const rt = { routeOut, routeFrom, routeOutTac, ...routes };
   const secs = () => Math.floor(now() / 1000);
@@ -229,25 +271,41 @@ export function makeLater({ keyHex, signer, ethCall, venues = null, ux = null, s
     if (!meta?.assetId) throw new Error('TAC is not a pool asset on this network.');
     return { t, priv, acct: t.account(priv), tk, meta };
   }
-  const prover = { ms: null, ready: false };
+  const prover = { ms: null, ready: false, got: 0, total: 0, busy: false, since: 0 };
   const mods = () => (modsP ||= (async () => {
-    const [zkm, wm, gw, pm, pos] = await Promise.all([import('/evm-pool-zk.js'), import('/evm-pool-wallet.js?cb=a6687b98'), import('/evm-pool-gateway.js'), import('/evm-pool-zk-prover.js?cb=00ff69c2'), import('/vendor/tacit-poseidon.min.js')]);
+    const [zkm, wm, gw, pm, pos] = await Promise.all([import('/evm-pool-zk.js'), import('/evm-pool-wallet.js?cb=2659d634'), import('/evm-pool-gateway.js'), import('/evm-pool-zk-prover.js?cb=00ff69c2'), import('/vendor/tacit-poseidon.min.js')]);
     const PO = { 2: pos.poseidon2, 3: pos.poseidon3, 4: pos.poseidon4, 5: pos.poseidon5, 7: pos.poseidon7 };
     return { zk: zkm.makeEvmPoolZk({ poseidon: (xs) => PO[xs.length](xs) }), wm, gw, vkHash: pm.vkHash };
   })().catch((e) => { modsP = null; throw e; }));
 
   async function artifact(name, sha) {
-    const url = '/evm-pool/' + name, key = `${url}?sha256=${sha}`;
+    const url = '/evm-pool/' + name, key = `${url}?sha256=${sha}`, want = lc(sha).replace(/^0x/, '');
     let cache = null; try { cache = await caches.open(ARTIFACT_CACHE); } catch { }
     const hit = cache ? await cache.match(key).catch(() => null) : null;
-    const bytes = new Uint8Array(await (hit || await fetch(url).then((r) => { if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`); return r; })).arrayBuffer());
-    if (hexOf(await crypto.subtle.digest('SHA-256', bytes)) !== lc(sha).replace(/^0x/, '')) { if (hit) await cache.delete(key).catch(() => {}); throw new Error(`${name} does not match the ceremony’s pinned hash`); }
+    // a file read as it comes, so what has arrived can be said (prover.got of prover.total)
+    const download = async (u) => {
+      const res = await fetch(u); if (!res.ok) throw new Error(`${name}: HTTP ${res.status}`);
+      const size = Number(res.headers.get('content-length')) || 0;
+      prover.total += size;
+      if (!size || !res.body?.getReader) { const x = new Uint8Array(await res.arrayBuffer()); if (!size) prover.total += x.length; prover.got += size || x.length; return x; }
+      const rd = res.body.getReader(), parts = []; let n = 0;
+      for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); n += value.length; prover.got += value.length; }
+      const out = new Uint8Array(n); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; }
+      return out;
+    };
+    const sum = async (x) => hexOf(await crypto.subtle.digest('SHA-256', x));
+    let bytes = null;
+    if (hit) bytes = new Uint8Array(await hit.arrayBuffer());
+    else if (gzOf(name)) { try { const x = await gunzip(await download(url + '.gz')); if (await sum(x) === want) bytes = x; } catch { } }
+    if (!bytes) bytes = await download(url);
+    if (await sum(bytes) !== want) { if (hit) await cache.delete(key).catch(() => {}); throw new Error(`${name} does not match the ceremony’s pinned hash`); }
     if (!hit && cache) await cache.put(key, new Response(bytes)).catch(() => {});
     return bytes;
   }
   function warm() {
     if (proveWith) return Promise.resolve(proveWith);
     return (proverP ||= (async () => {
+      prover.got = 0; prover.total = 0;
       const [{ vkHash }, p] = await Promise.all([mods(), fetch('/evm-pool/pin.json', { cache: 'no-store' }).then((r) => r.json())]);
       const [vkB, wasm, zkey] = await Promise.all([artifact(p.vk, p.vk_sha256), artifact(p.wasm, p.wasm_sha256), artifact(p.zkey, p.zkey_sha256)]);
       const vk = JSON.parse(new TextDecoder().decode(vkB));
@@ -268,7 +326,12 @@ export function makeLater({ keyHex, signer, ethCall, venues = null, ux = null, s
       return async (input) => { const t = performance.now(), r = await call({ op: 'prove', input }, [], 8 * 60e3); prover.ms = performance.now() - t; return { proof: r.proof, publicSignals: r.publicSignals }; };
     })().catch((e) => { proverP = null; throw e; }));
   }
-  const prove = oneAtATime(async (input) => (await warm())(input));
+  const prove = oneAtATime(async (input) => {
+    prover.busy = true; prover.since = 0;
+    try { const run = await warm(); prover.since = Date.now(); return await run(input); } finally { prover.busy = false; prover.since = 0; }
+  });
+  // what the page says while a proof is asked for: the files still coming (bytes of bytes), or the proof running (ms so far, and the last one's ms)
+  const proverState = () => ({ busy: prover.busy, ready: prover.ready, got: prover.got, total: prover.total, ms: prover.ms, runningMs: prover.since ? Date.now() - prover.since : 0 });
 
   async function keyId() {
     const priv = await keyHex();
@@ -372,39 +435,7 @@ export function makeLater({ keyHex, signer, ethCall, venues = null, ux = null, s
       store.setItem(TOKEN_POOLS_KEY, JSON.stringify([{ token: lc(hop.token), sym, dec, pool: hop.pool, router: hop.router, id: hop.id, from: hop.from || TOKEN_POOLS_FROM }, ...all].slice(0, 40)));
     } catch { }
   };
-  const approvals = (token, amount, had) => [...(had > 0n && lc(token) === USDT ? [{ to: token, data: encApprove(ZAP, 0n), value: 0n }] : []), { to: token, data: encApprove(ZAP, amount), value: 0n }];
-  async function zapPull({ token, sym, amount, deadline, onStep }) {
-    const owner = signer.address, acc = await readAccess({ ethCall, token, owner, spender: ZAP });
-    if (acc.balance < amount) throw new Error(`Not enough ${sym} in the wallet for the deposit. Nothing was sent.`);
-    if (acc.allowed >= amount) return { kind: 'allowance' };
-    if (signer.signTyped) {
-      const t = await readToken({ ethCall, keccak256: keccak_256, address: token }).catch(() => null);
-      if (t?.permit && acc.nonce != null && lc(token) !== DAI) {
-        try {
-          onStep('sign the permit');
-          const p = splitSig(await signer.signTyped(permitTyped({ token, name: t.name, version: t.permit, owner, spender: ZAP, value: amount, nonce: acc.nonce, deadline })));
-          await ethCall(token, '0xd505accf' + word(owner) + word(ZAP) + amount.toString(16).padStart(64, '0') + BigInt(deadline).toString(16).padStart(64, '0') + p.v.toString(16).padStart(64, '0') + word(p.r) + word(p.s), 'latest');
-          return { kind: 'permit', value: amount, deadline: BigInt(deadline), ...p };
-        } catch (e) { if (declined(e)) throw e; }
-      }
-      if (acc.permit2 >= amount) {
-        try {
-          onStep('sign the permit');
-          const nonce = permit2Nonce(), sig = await signer.signTyped(permit2Typed({ token, amount, nonce, deadline, spender: ZAP }));
-          const { gw } = await mods();
-          await ethCall(PERMIT2, gw.calldata('permitTransferFrom(((address,uint256),uint256,uint256),(address,uint256),address,bytes)', [{ tuple: [{ tuple: ['address', 'uint256'] }, 'uint256', 'uint256'] }, { tuple: ['address', 'uint256'] }, 'address', 'bytes'],
-            [[[token, amount], nonce, BigInt(deadline)], [ZAP, amount], owner, sig]), 'latest', { from: ZAP });
-          return { kind: 'permit2', nonce, deadline: BigInt(deadline), sig };
-        } catch (e) { if (declined(e)) throw e; }
-      }
-    }
-    const ask = approvals(token, amount, acc.allowed);
-    if (signer.batch && signer.canBatch && await Promise.resolve(signer.canBatch()).catch(() => false)) return { kind: 'allowance', before: ask };
-    let zeroed = false;
-    try { for (const c of ask) { const reset = c.data === encApprove(ZAP, 0n); onStep(reset ? 'reset the allowance' : 'approve'); await mined(await signer.send(c)); if (reset) zeroed = true; } }
-    catch (e) { throw zeroed ? afterReset(e) : e; }
-    return { kind: 'allowance' };
-  }
+  const zapPull = async (o) => zapPullWith({ ethCall, signer, mined, calldata: async () => (await mods()).gw.calldata, ...o });
 
   async function start({ swapWei, extraWei = 0n, token, sym, dec, to, toName = null, depositWei, dest = { kind: 'address' }, gasWei = 0n, pay = null, hop = null, onStep = () => {} }) {
     if (hop) return startHop({ swapWei, extraWei, token, sym, dec, to, toName, depositWei, pay, hop, onStep });
@@ -884,5 +915,5 @@ export function makeLater({ keyHex, signer, ethCall, venues = null, ux = null, s
     } finally { save(plan); }
   }
 
-  return { start, startBoxed, ahead, adopt, swapIntoPool, depositBoxFor, blend, offer, swapOut, shield, check, reclaimBox, reclaimIntoBox, boxHolds, forget, warm, modules: mods, hopOf, openPool, plans: () => readPlans(store), get proveMs() { return prover.ms; }, get proverReady() { return prover.ready; } };
+  return { start, startBoxed, ahead, adopt, swapIntoPool, depositBoxFor, blend, offer, swapOut, shield, check, reclaimBox, reclaimIntoBox, boxHolds, forget, warm, proverState, modules: mods, hopOf, openPool, plans: () => readPlans(store), get proveMs() { return prover.ms; }, get proverReady() { return prover.ready; } };
 }
