@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-nAtCzn14CcWZOxdwF+fuT33nRmBS3QiP++GafSxtcSs='; style-src 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://mainnet.gateway.tenderly.co https://ethereum-rpc.publicnode.com https://rpc.mevblocker.io https://eth-mainnet.nodereal.io https://eth.drpc.org https://1.rpc.thirdweb.com https://rpc.flashbots.net https://eth-mainnet.public.blastapi.io https://ethereum-json-rpc.stakely.io https://1rpc.io; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-sZ6xwgDQf/dxypDYQbVs9aSqN3uTr4DBdbPrnzTBhSY='; style-src 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://mainnet.gateway.tenderly.co https://ethereum-rpc.publicnode.com https://rpc.mevblocker.io https://eth-mainnet.nodereal.io https://eth.drpc.org https://1.rpc.thirdweb.com https://rpc.flashbots.net https://eth-mainnet.public.blastapi.io https://ethereum-json-rpc.stakely.io https://1rpc.io; base-uri 'none'; form-action 'none'">
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex">
 <title>tacit admin · gas relay</title>
@@ -162,6 +162,7 @@ const hashOfCode = (code) => '0x' + keccak256(Uint8Array.from(strip(code).match(
 async function rpc(method, params = []) {
   let last;
   for (const url of KIT.rpc) {
+    if (new URL(url).hostname === 'mainnet.gateway.tenderly.co') continue;
     try {
       const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
       const j = await r.json();
