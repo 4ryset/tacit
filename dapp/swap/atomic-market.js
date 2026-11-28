@@ -10,7 +10,7 @@
 //                   by one provider, and by the best few together (split)
 //   estimate(m, dir, amount) -> { get, provider } | null       what the best provider would give for `amount`, before its own quote
 
-import { discoverProviders } from '/fast/discover.js?cb=e806c31e';
+import { discoverProviders } from '/fast/discover.js?cb=137ec980';
 import { makeRateFeed, chainlinkEthBtc, chainlinkQuorum, PRICE_NODES } from '/fastbridge-rate.js?cb=b392f6cc';
 import { ETH_NODES, batchSize } from '/eth-nodes.js';
 import { bodyType } from '/rpc-body.js';
